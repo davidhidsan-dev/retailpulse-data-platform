@@ -1,0 +1,45 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and runtime files
+*.log
+logs/
+
+# Data artifacts (keep directory placeholders)
+data/raw/*
+data/bronze/*
+data/silver/*
+data/gold/*
+!data/raw/.gitkeep
+!data/bronze/.gitkeep
+!data/silver/.gitkeep
+!data/gold/.gitkeep
+
+# dbt artifacts
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+
+# Notebooks and editors
+.ipynb_checkpoints/
+.idea/
+.vscode/
+
+# Operating systems
+.DS_Store
+Thumbs.db
