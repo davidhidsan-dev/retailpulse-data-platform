@@ -2,7 +2,7 @@
 
 ## Estado
 
-Documento inicial de Fase 0. La arquitectura se detallará antes de implementar el pipeline.
+Documento actualizado para la Fase 1. PostgreSQL contiene únicamente el modelo fuente operacional y los datos sintéticos usados para desarrollo.
 
 ## Capas previstas
 
@@ -11,4 +11,4 @@ Documento inicial de Fase 0. La arquitectura se detallará antes de implementar 
 - `silver`: datos limpios, tipados y validados.
 - `gold`: modelos analíticos listos para consumo.
 
-PostgreSQL será el servicio de infraestructura inicial. La orquestación se incorporará en una fase posterior.
+Las capas de datos todavía no están implementadas. La orquestación se incorporará en una fase posterior.

@@ -8,7 +8,7 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 
 ## Estado actual
 
-**Fase 0 — estructura y configuración inicial.** El repositorio está preparado para comenzar la Fase 1.
+**Fase 1 — datos sintéticos y PostgreSQL.** El modelo fuente, el generador y la carga inicial están implementados.
 
 ## Stack objetivo v1.0
 
@@ -16,6 +16,29 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 - Docker Compose, pytest y GitHub Actions.
 - Logging, auditoría y documentación técnica.
 - dbt y Airflow en fases posteriores, cuando exista un pipeline que modelar y orquestar.
+
+## Fase 1
+
+La fuente contiene las tablas `customers`, `products`, `inventory`, `orders`, `order_items` y `payments`. Para crear el esquema y generar una carga sintética:
+
+```bash
+cp .env.example .env
+make up
+make init-db
+make seed-db
+```
+
+El generador también puede ejecutarse directamente:
+
+```bash
+python -m src.synthetic_data.generate_retail_data \
+  --customers 500 \
+  --products 100 \
+  --orders 1000 \
+  --seed 42
+```
+
+Los parámetros son opcionales. Por defecto se generan 2.000 clientes, 300 productos y 10.000 pedidos con seed `42`. Una misma combinación de volúmenes y seed produce el mismo dataset.
 
 ## Fases futuras
 
@@ -27,12 +50,13 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 ## Primeros comandos
 
 ```bash
-cp .env.example .env
 make up
 make ps
 make logs
+make init-db
+make seed-db
 make test
 make down
 ```
 
-> En la Fase 0 todavía no hay generación de datos, ETL ni pipeline implementado.
+> La Fase 1 solo cubre datos sintéticos y PostgreSQL. Todavía no hay ETL, data lake ni warehouse.

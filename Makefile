@@ -1,4 +1,4 @@
-.PHONY: up down logs ps test clean
+.PHONY: up down logs ps test clean init-db seed-db
 
 up:
 	docker compose up -d
@@ -14,6 +14,12 @@ ps:
 
 test:
 	pytest
+
+init-db:
+	python -m src.utils.database
+
+seed-db:
+	python -m src.synthetic_data.generate_retail_data
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
