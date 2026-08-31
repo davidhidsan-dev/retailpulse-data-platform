@@ -1,4 +1,4 @@
-.PHONY: up down logs ps test clean init-db seed-db
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake
 
 up:
 	docker compose up -d
@@ -20,6 +20,9 @@ init-db:
 
 seed-db:
 	python -m src.synthetic_data.generate_retail_data
+
+ingest-lake:
+	python -m src.ingest.postgres_to_lake
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"

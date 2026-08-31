@@ -8,7 +8,7 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 
 ## Estado actual
 
-**Fase 1 — datos sintéticos y PostgreSQL.** El modelo fuente, el generador y la carga inicial están implementados.
+**Fase 2 — ingesta Python y data lake local.** PostgreSQL se extrae hacia capas raw y bronze particionadas por fecha de carga.
 
 ## Stack objetivo v1.0
 
@@ -40,6 +40,17 @@ python -m src.synthetic_data.generate_retail_data \
 
 Los parámetros son opcionales. Por defecto se generan 2.000 clientes, 300 productos y 10.000 pedidos con seed `42`. Una misma combinación de volúmenes y seed produce el mismo dataset.
 
+## Fase 2
+
+Las seis tablas fuente se extraen completas desde PostgreSQL. Raw conserva snapshots CSV sin modificar y bronze escribe Parquet con `ingestion_id`, `ingested_at`, `source_system` y `source_table`.
+
+```bash
+make ingest-lake
+python -m src.ingest.postgres_to_lake --load-date 2026-08-21
+```
+
+Los archivos se organizan como `data/<layer>/postgres/<table>/load_date=YYYY-MM-DD/` y están excluidos de Git.
+
 ## Fases futuras
 
 1. Fuentes, contratos e ingestión inicial.
@@ -55,8 +66,9 @@ make ps
 make logs
 make init-db
 make seed-db
+make ingest-lake
 make test
 make down
 ```
 
-> La Fase 1 solo cubre datos sintéticos y PostgreSQL. Todavía no hay ETL, data lake ni warehouse.
+> La Fase 2 cubre ingesta raw/bronze local. Todavía no hay limpieza avanzada, silver, warehouse ni orquestación.
