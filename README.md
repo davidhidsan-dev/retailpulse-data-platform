@@ -8,7 +8,7 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 
 ## Estado actual
 
-**Fase 2 — ingesta Python y data lake local.** PostgreSQL se extrae hacia capas raw y bronze particionadas por fecha de carga.
+**Fase 3 — calidad y capa silver.** Los snapshots bronze se validan y se separan en registros válidos y rechazados, con auditoría por ejecución.
 
 ## Stack objetivo v1.0
 
@@ -51,12 +51,22 @@ python -m src.ingest.postgres_to_lake --load-date 2026-08-21
 
 Los archivos se organizan como `data/<layer>/postgres/<table>/load_date=YYYY-MM-DD/` y están excluidos de Git.
 
+## Fase 3
+
+La validación aplica reglas de completitud, unicidad, dominio, importes y claves foráneas. Los registros válidos se escriben en silver, los inválidos en rejected y cada ejecución se resume en `data/audit/quality_runs.parquet`.
+
+```bash
+make quality
+python -m src.quality.validate_bronze --load-date 2026-08-21
+```
+
+La partición bronze de la fecha solicitada debe existir antes de ejecutar la validación.
+
 ## Fases futuras
 
-1. Fuentes, contratos e ingestión inicial.
-2. Limpieza, calidad, auditoría e idempotencia.
-3. Modelado analítico con dbt.
-4. Orquestación con Airflow y visualización.
+1. Modelado analítico y warehouse con dbt.
+2. Orquestación con Airflow.
+3. Capa gold, visualización y evolución operativa.
 
 ## Primeros comandos
 
@@ -67,8 +77,9 @@ make logs
 make init-db
 make seed-db
 make ingest-lake
+make quality
 make test
 make down
 ```
 
-> La Fase 2 cubre ingesta raw/bronze local. Todavía no hay limpieza avanzada, silver, warehouse ni orquestación.
+> La Fase 3 cubre calidad básica, silver, rejected records y auditoría local. Todavía no hay warehouse, dbt ni orquestación.

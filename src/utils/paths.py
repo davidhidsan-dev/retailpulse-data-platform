@@ -10,7 +10,13 @@ from typing import Literal
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_ROOT = PROJECT_ROOT / "data"
-LAKE_EXTENSIONS = {"raw": "csv", "bronze": "parquet"}
+LAKE_EXTENSIONS = {
+    "raw": "csv",
+    "bronze": "parquet",
+    "silver": "parquet",
+    "rejected": "parquet",
+}
+LAKE_FILE_SUFFIXES = {"rejected": "_rejected"}
 SAFE_COMPONENT_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -34,13 +40,13 @@ def _validate_component(value: str, name: str) -> None:
 
 
 def build_lake_path(
-    layer: Literal["raw", "bronze"],
+    layer: Literal["raw", "bronze", "silver", "rejected"],
     source_system: str,
     table: str,
     load_date: date | str,
     data_root: Path | str = DEFAULT_DATA_ROOT,
 ) -> Path:
-    """Build a partitioned raw or bronze file path."""
+    """Build a partitioned raw, bronze, silver or rejected file path."""
     if layer not in LAKE_EXTENSIONS:
         raise ValueError(f"Unsupported lake layer: {layer!r}")
     _validate_component(source_system, "source system")
@@ -48,11 +54,17 @@ def build_lake_path(
 
     resolved_date = resolve_load_date(load_date)
     extension = LAKE_EXTENSIONS[layer]
+    file_suffix = LAKE_FILE_SUFFIXES.get(layer, "")
     return (
         Path(data_root)
         / layer
         / source_system
         / table
         / f"load_date={resolved_date.isoformat()}"
-        / f"{table}.{extension}"
+        / f"{table}{file_suffix}.{extension}"
     )
+
+
+def build_audit_path(data_root: Path | str = DEFAULT_DATA_ROOT) -> Path:
+    """Return the shared quality-run audit path."""
+    return Path(data_root) / "audit" / "quality_runs.parquet"

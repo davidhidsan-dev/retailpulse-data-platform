@@ -1,4 +1,4 @@
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality
 
 up:
 	docker compose up -d
@@ -23,6 +23,9 @@ seed-db:
 
 ingest-lake:
 	python -m src.ingest.postgres_to_lake
+
+quality:
+	python -m src.quality.validate_bronze
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"

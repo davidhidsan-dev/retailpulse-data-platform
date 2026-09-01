@@ -22,6 +22,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
         "data/raw",
         "data/bronze",
         "data/silver",
+        "data/rejected",
+        "data/audit",
         "data/gold",
         "docs",
         "dashboards/screenshots",
