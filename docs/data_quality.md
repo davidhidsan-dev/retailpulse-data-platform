@@ -75,6 +75,41 @@ python -m src.quality.validate_bronze --load-date 2026-08-21
 
 Sin `--load-date` se usa la fecha UTC actual.
 
+## Modo demo de rejected records
+
+El generador sintético principal crea relaciones y valores consistentes. Por eso una ejecución normal puede terminar con cero rejected records: significa que la fuente simulada ha superado las reglas, no que el control de calidad esté inactivo.
+
+Para enseñar el circuito de rechazo existe una utilidad opcional que copia una partición bronze y altera de forma determinista una fila por tabla:
+
+| Tabla | Anomalía de demostración |
+|---|---|
+| `customers` | Email con valor `invalid-email`. |
+| `products` | `unit_price` con valor `-10`. |
+| `inventory` | `stock_quantity` con valor `-5`. |
+| `orders` | `customer_id=999999999`, inexistente en customers. |
+| `order_items` | `line_total` distinto de `quantity * unit_price`. |
+| `payments` | `payment_status=unknown_status`. |
+
+Las anomalías no son aleatorias y siempre se aplican a la primera fila. El script exige fechas de origen y destino diferentes, conserva las columnas y metadatos bronze, y nunca modifica la partición fuente.
+
+Ejecución directa:
+
+```bash
+python -m src.quality.create_bad_bronze_demo \
+  --source-load-date 2026-09-01 \
+  --demo-load-date 2099-01-01
+python -m src.quality.validate_bronze --load-date 2099-01-01
+```
+
+Ejecución mediante Make:
+
+```bash
+make quality-demo SOURCE_LOAD_DATE=2026-09-01
+make quality-demo SOURCE_LOAD_DATE=2026-09-01 DEMO_LOAD_DATE=2099-01-02
+```
+
+`SOURCE_LOAD_DATE` es obligatorio porque debe identificar una partición bronze local existente; `DEMO_LOAD_DATE` usa `2099-01-01` por defecto. La demo no representa la fuente operacional, no debe utilizarse como dataset base y sus archivos permanecen excluidos de Git.
+
 ## Limitaciones y Fase 4
 
 Las reglas actuales son deterministas y de alcance local: no miden frescura mediante acuerdos de servicio, no comparan pagos con el total del pedido y no gestionan concurrencia sobre el archivo de auditoría. La Fase 4 incorporará warehouse y modelado analítico con dbt; la orquestación seguirá reservada para una fase posterior.

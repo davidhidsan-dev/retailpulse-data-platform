@@ -62,6 +62,14 @@ python -m src.quality.validate_bronze --load-date 2026-08-21
 
 La partición bronze de la fecha solicitada debe existir antes de ejecutar la validación.
 
+Una ejecución normal puede producir cero rejected records cuando la fuente cumple todas las reglas. Para demostrar el circuito de rechazo sin alterar la fuente ni el generador principal, existe un modo demo con anomalías controladas:
+
+```bash
+make quality-demo SOURCE_LOAD_DATE=2026-09-01
+```
+
+El comando crea y valida por defecto la partición demo `2099-01-01`. Puede cambiarse con `DEMO_LOAD_DATE=YYYY-MM-DD`.
+
 ## Fases futuras
 
 1. Modelado analítico y warehouse con dbt.
@@ -78,6 +86,7 @@ make init-db
 make seed-db
 make ingest-lake
 make quality
+make quality-demo SOURCE_LOAD_DATE=2026-09-01
 make test
 make down
 ```

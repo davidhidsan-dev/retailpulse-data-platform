@@ -1,4 +1,6 @@
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality
+DEMO_LOAD_DATE ?= 2099-01-01
+
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo
 
 up:
 	docker compose up -d
@@ -26,6 +28,10 @@ ingest-lake:
 
 quality:
 	python -m src.quality.validate_bronze
+
+quality-demo:
+	python -m src.quality.create_bad_bronze_demo --source-load-date $(SOURCE_LOAD_DATE) --demo-load-date $(DEMO_LOAD_DATE)
+	python -m src.quality.validate_bronze --load-date $(DEMO_LOAD_DATE)
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
