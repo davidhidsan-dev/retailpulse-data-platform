@@ -42,9 +42,17 @@ models:
       - name: customer_id
         data_tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
       - name: product_id
         data_tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
       - name: order_status
         data_tests:
           - accepted_values:
@@ -68,6 +76,10 @@ models:
         data_tests:
           - unique
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
       - name: stock_quantity
         data_tests:
           - not_null

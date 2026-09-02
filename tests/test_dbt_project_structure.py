@@ -18,6 +18,57 @@ SOURCE_TABLES = (
     "order_items",
     "payments",
 )
+STAGING_TEXT_COLUMNS = {
+    "customers": (
+        "first_name",
+        "last_name",
+        "email",
+        "country",
+        "city",
+        "synthetic_behavior_segment",
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+    "products": (
+        "sku",
+        "product_name",
+        "category",
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+    "inventory": (
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+    "orders": (
+        "order_status",
+        "country",
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+    "order_items": (
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+    "payments": (
+        "payment_method",
+        "payment_status",
+        "ingestion_id",
+        "source_system",
+        "source_table",
+        "quality_run_id",
+    ),
+}
 MART_MODELS = (
     "dim_customer",
     "dim_product",
@@ -64,10 +115,16 @@ def test_sources_point_to_warehouse_source_schema() -> None:
 @pytest.mark.parametrize("table", SOURCE_TABLES)
 def test_staging_models_select_from_dbt_source(table: str) -> None:
     sql = (STAGING_ROOT / f"stg_{table}.sql").read_text(encoding="utf-8")
+    normalized_sql = sql.lower()
 
     assert f"source('warehouse_source', '{table}')" in sql
     assert "quality_run_id" in sql
     assert "quality_checked_at" in sql
+    assert "select *" not in normalized_sql
+    assert " join " not in normalized_sql
+    assert "group by" not in normalized_sql
+    for column in STAGING_TEXT_COLUMNS[table]:
+        assert f"cast({column} as text) as {column}" in normalized_sql
 
 
 def test_fact_sales_declares_order_item_grain_and_required_joins() -> None:
@@ -119,3 +176,6 @@ def test_mart_schema_declares_key_and_domain_tests() -> None:
     assert "- unique" in schema
     assert "- not_null" in schema
     assert schema.count("accepted_values:") == 3
+    assert schema.count("relationships:") == 3
+    assert schema.count("to: ref('dim_customer')") == 1
+    assert schema.count("to: ref('dim_product')") == 2

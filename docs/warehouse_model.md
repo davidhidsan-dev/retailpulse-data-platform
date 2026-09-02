@@ -23,7 +23,7 @@ dbt mantiene las transformaciones analíticas en SQL versionado y construye el g
 
 ## Staging y marts
 
-Los seis modelos `stg_*` son vistas simples sobre `warehouse_source`. Seleccionan y castean columnas de negocio y conservan los metadatos de ingesta y calidad para trazabilidad; no agregan métricas.
+Los seis modelos `stg_*` son vistas simples sobre `warehouse_source`. Castean explícitamente tanto los campos de negocio como los campos técnicos, y conservan los metadatos de ingesta y calidad para trazabilidad; no agregan métricas.
 
 Los marts se materializan como tablas en el esquema dbt configurado, `analytics` por defecto:
 
