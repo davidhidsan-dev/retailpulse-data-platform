@@ -1,0 +1,17 @@
+name: retailpulse
+version: 1.0.0
+config-version: 2
+
+profile: retailpulse
+
+model-paths: ["models"]
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  retailpulse:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

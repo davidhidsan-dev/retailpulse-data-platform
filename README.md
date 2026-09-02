@@ -8,14 +8,14 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 
 ## Estado actual
 
-**Fase 3 — calidad y capa silver.** Los snapshots bronze se validan y se separan en registros válidos y rechazados, con auditoría por ejecución.
+**Fase 4 — warehouse PostgreSQL y modelo analítico dbt.** Los datos silver se publican en `warehouse_source` y dbt construye staging, dimensiones y hechos iniciales.
 
 ## Stack objetivo v1.0
 
 - Python, pandas, Parquet, SQLAlchemy y PostgreSQL.
 - Docker Compose, pytest y GitHub Actions.
 - Logging, auditoría y documentación técnica.
-- dbt y Airflow en fases posteriores, cuando exista un pipeline que modelar y orquestar.
+- dbt para el modelado analítico; Airflow queda reservado para una fase posterior.
 
 ## Fase 1
 
@@ -70,11 +70,31 @@ make quality-demo SOURCE_LOAD_DATE=2026-09-01
 
 El comando crea y valida por defecto la partición demo `2099-01-01`. Puede cambiarse con `DEMO_LOAD_DATE=YYYY-MM-DD`.
 
+## Fase 4
+
+Las seis tablas silver se cargan mediante estrategia replace en el esquema PostgreSQL `warehouse_source`. dbt crea seis vistas staging y los marts `dim_customer`, `dim_product`, `dim_date`, `fact_sales` y `fact_inventory`.
+
+Antes del primer uso, crea el perfil dbt local:
+
+```powershell
+Copy-Item dbt/profiles.yml.example dbt/profiles.yml
+```
+
+Después ejecuta:
+
+```bash
+make load-warehouse LOAD_DATE=2026-09-02
+make dbt-run
+make dbt-test
+make dbt-docs-generate
+```
+
+`LOAD_DATE` es opcional; sin ese valor se usa la fecha UTC actual. El perfil local utiliza las variables PostgreSQL y está excluido de Git.
+
 ## Fases futuras
 
-1. Modelado analítico y warehouse con dbt.
-2. Orquestación con Airflow.
-3. Capa gold, visualización y evolución operativa.
+1. Orquestación con Airflow.
+2. Capa gold, visualización y evolución operativa.
 
 ## Primeros comandos
 
@@ -87,8 +107,11 @@ make seed-db
 make ingest-lake
 make quality
 make quality-demo SOURCE_LOAD_DATE=2026-09-01
+make load-warehouse LOAD_DATE=2026-09-02
+make dbt-run
+make dbt-test
 make test
 make down
 ```
 
-> La Fase 3 cubre calidad básica, silver, rejected records y auditoría local. Todavía no hay warehouse, dbt ni orquestación.
+> La Fase 4 cubre carga completa al warehouse y modelado dbt inicial. Todavía no hay incrementalidad, Airflow ni dashboards.

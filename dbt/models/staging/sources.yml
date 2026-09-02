@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: warehouse_source
+    description: Silver datasets loaded into PostgreSQL for dbt modeling.
+    schema: warehouse_source
+    tables:
+      - name: customers
+      - name: products
+      - name: inventory
+      - name: orders
+      - name: order_items
+      - name: payments

@@ -17,6 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
         "src/audit",
         "src/utils",
         "src/synthetic_data",
+        "src/warehouse",
         "dbt",
         "sql",
         "data/raw",

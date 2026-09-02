@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: One row per customer from the validated source.
+    columns:
+      - name: customer_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_product
+    description: One row per product and commercial SKU.
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+      - name: sku
+        data_tests:
+          - unique
+          - not_null
+
+  - name: dim_date
+    description: One row per calendar day covered by the orders dataset.
+    columns:
+      - name: date_day
+        data_tests:
+          - unique
+          - not_null
+
+  - name: fact_sales
+    description: One row per order item enriched with order and payment attributes.
+    columns:
+      - name: order_item_id
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        data_tests:
+          - not_null
+      - name: customer_id
+        data_tests:
+          - not_null
+      - name: product_id
+        data_tests:
+          - not_null
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [completed, cancelled, refunded, pending]
+      - name: payment_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [paid, failed, refunded, pending]
+      - name: payment_method
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [credit_card, paypal, bank_transfer, gift_card]
+
+  - name: fact_inventory
+    description: One row per product with its current inventory position.
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+      - name: stock_quantity
+        data_tests:
+          - not_null

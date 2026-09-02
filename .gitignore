@@ -38,6 +38,8 @@ data/gold/*
 dbt/target/
 dbt/logs/
 dbt/dbt_packages/
+dbt/profiles.yml
+dbt/.user.yml
 
 # Notebooks and editors
 .ipynb_checkpoints/
