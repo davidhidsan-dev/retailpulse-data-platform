@@ -1,0 +1,45 @@
+services:
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+      args:
+        AIRFLOW_VERSION: "3.1.5"
+    image: retailpulse-airflow:3.1.5
+    container_name: retailpulse-airflow
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      RETAILPULSE_PROJECT_ROOT: /opt/airflow/retailpulse
+      PATH: /home/airflow/.retailpulse-venv/bin:/home/airflow/.local/bin:/usr/local/bin:/usr/bin:/bin
+      PYTHONPATH: /opt/airflow/retailpulse
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DBT_SCHEMA: ${DBT_SCHEMA:-analytics}
+    command: standalone
+    ports:
+      - "8080:8080"
+    volumes:
+      - airflow_home:/opt/airflow
+      - .:/opt/airflow/retailpulse
+      - ./dags:/opt/airflow/dags:ro
+      - ./dbt/profiles.yml.example:/opt/airflow/retailpulse/dbt/profiles.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/api/v2/monitor/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+volumes:
+  airflow_home:

@@ -1,0 +1,2 @@
+# RetailPulse dependencies are installed in an isolated virtual environment.
+-r requirements.txt

@@ -1,6 +1,7 @@
 DEMO_LOAD_DATE ?= 2099-01-01
+AIRFLOW_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.airflow.yml
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps
 
 up:
 	docker compose up -d
@@ -44,6 +45,18 @@ dbt-test:
 
 dbt-docs-generate:
 	cd dbt && dbt docs generate --profiles-dir .
+
+airflow-up:
+	$(AIRFLOW_COMPOSE) up -d --build postgres airflow
+
+airflow-down:
+	$(AIRFLOW_COMPOSE) down
+
+airflow-logs:
+	$(AIRFLOW_COMPOSE) logs -f airflow
+
+airflow-ps:
+	$(AIRFLOW_COMPOSE) ps
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"

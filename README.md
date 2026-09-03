@@ -8,14 +8,14 @@ Diseñar un flujo por capas (`raw`, `bronze`, `silver` y `gold`) con trazabilida
 
 ## Estado actual
 
-**Fase 4 — warehouse PostgreSQL y modelo analítico dbt.** Los datos silver se publican en `warehouse_source` y dbt construye staging, dimensiones y hechos iniciales.
+**Fase 5 — orquestación local con Airflow.** El DAG coordina el pipeline batch completo sobre los componentes existentes, mientras que el flujo manual con Makefile sigue disponible.
 
 ## Stack objetivo v1.0
 
 - Python, pandas, Parquet, SQLAlchemy y PostgreSQL.
 - Docker Compose, pytest y GitHub Actions.
 - Logging, auditoría y documentación técnica.
-- dbt para el modelado analítico; Airflow queda reservado para una fase posterior.
+- dbt para el modelado analítico y Airflow para la orquestación batch local.
 
 ## Fase 1
 
@@ -91,10 +91,22 @@ make dbt-docs-generate
 
 `LOAD_DATE` es opcional; sin ese valor se usa la fecha UTC actual. El perfil local utiliza las variables PostgreSQL y está excluido de Git.
 
+## Fase 5
+
+El DAG `retailpulse_batch_pipeline` orquesta de forma lineal la preparación de la fuente, ingesta, calidad, carga al warehouse y ejecución de dbt. Airflow no añade transformaciones: solo invoca los mismos comandos Python y dbt disponibles desde el Makefile.
+
+```bash
+make airflow-up
+make airflow-ps
+make airflow-logs
+```
+
+La interfaz queda disponible en `http://localhost:8080`. El DAG se ejecuta manualmente y acepta opcionalmente `{"load_date": "YYYY-MM-DD"}` en su configuración. Consulta `docs/orchestration.md` para el flujo completo y sus limitaciones.
+
 ## Fases futuras
 
-1. Orquestación con Airflow.
-2. Capa gold, visualización y evolución operativa.
+1. Capa gold y visualización.
+2. Incrementalidad y evolución operativa.
 
 ## Primeros comandos
 
@@ -110,8 +122,10 @@ make quality-demo SOURCE_LOAD_DATE=2026-09-01
 make load-warehouse LOAD_DATE=2026-09-02
 make dbt-run
 make dbt-test
+make airflow-up
+make airflow-ps
 make test
 make down
 ```
 
-> La Fase 4 cubre carga completa al warehouse y modelado dbt inicial. Todavía no hay incrementalidad, Airflow ni dashboards.
+> La Fase 5 añade orquestación local opcional. Todavía no hay incrementalidad, alertas externas ni dashboards.
