@@ -35,20 +35,16 @@ No incluye todavía dashboard, incrementalidad, Spark, Kafka, MongoDB, ML, GenAI
 ## Arquitectura
 
 ```text
-PostgreSQL source
-    ↓
-Python ingestion
-    ↓
-raw CSV
-    ↓
-bronze Parquet + ingestion metadata
-    ↓
-Python quality validation
-    ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
-    ├── rejected Parquet
-    └── audit quality_runs.parquet
-    ↓
-Airflow optional orchestration
+PostgreSQL source → Python ingestion
+                       ├── raw CSV
+                       └── bronze Parquet + ingestion metadata
+                             ↓
+                       Python quality validation
+                         ├── silver → warehouse_source → dbt staging → dbt marts
+                         ├── rejected Parquet
+                         └── audit quality_runs.parquet
+
+Airflow: optional orchestration of the existing Python and dbt commands
 ```
 
 Airflow no transforma datos. Solo coordina comandos Python y dbt ya existentes.
@@ -84,18 +80,23 @@ Más detalle: [`docs/architecture.md`](docs/architecture.md).
 
 ## Ejecución rápida
 
-Preparar entorno:
+Preparar entorno (primera instalación; conserva `.env` y el perfil si ya existen):
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 cp .env.example .env
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 cp dbt/profiles.yml.example dbt/profiles.yml
 ```
 
 En PowerShell:
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 Copy-Item .env.example .env
+python -m pip install -r requirements.txt
 Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 ```
 
@@ -103,6 +104,12 @@ Levantar PostgreSQL y ejecutar flujo manual:
 
 ```bash
 make up
+make ps
+```
+
+Espera a que PostgreSQL aparezca `healthy` antes de continuar:
+
+```bash
 make init-db
 make seed-db
 make ingest-lake
@@ -113,6 +120,8 @@ make dbt-test
 ```
 
 Si `make ingest-lake` y `make quality` se ejecutan sin fecha explícita, usan la fecha UTC actual. Para evitar dudas, los módulos Python aceptan `--load-date`.
+
+Sustituye `YYYY-MM-DD` por esa fecha. Si personalizas la conexión, consulta el [runbook](docs/runbook.md): los targets dbt no cargan `.env` automáticamente.
 
 ## Ejecución con Airflow
 

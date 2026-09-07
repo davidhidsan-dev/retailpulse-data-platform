@@ -10,6 +10,8 @@ La idempotencia aquí es local y limitada. No pretende ser una estrategia produc
 
 Para una misma entrada y una misma `load_date`, una reejecución debe dejar un resultado equivalente, sin acumular duplicados innecesarios.
 
+La equivalencia se refiere a los datos de negocio con la misma entrada. Los IDs y timestamps técnicos de ingesta/calidad cambian entre ejecuciones y audit acumula registros, por lo que no hay identidad byte a byte ni idempotencia estricta de extremo a extremo.
+
 ## ES — Fuente PostgreSQL
 
 `make seed-db` reemplaza el contenido de las tablas fuente en una transacción.
@@ -141,6 +143,8 @@ Idempotency here is local and limited. It is not a full production strategy.
 ## EN — General principle
 
 For the same input and the same `load_date`, a rerun should leave an equivalent result without accumulating unnecessary duplicates.
+
+Equivalence refers to business data for the same input. Ingestion/quality IDs and timestamps change between runs and audit accumulates records, so there is no byte-for-byte identity or strict end-to-end idempotency.
 
 ## EN — PostgreSQL source
 

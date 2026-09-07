@@ -11,6 +11,7 @@ El objetivo es que el flujo sea reproducible, observable y fácil de explicar si
 ```mermaid
 flowchart TD
     source[(PostgreSQL source)]
+    ingestion[Python ingestion]
     raw[raw CSV]
     bronze[bronze Parquet]
     quality[Python quality validation]
@@ -22,8 +23,9 @@ flowchart TD
     marts[dbt marts]
     airflow[Airflow DAG]
 
-    source --> raw
-    raw --> bronze
+    source --> ingestion
+    ingestion --> raw
+    ingestion --> bronze
     bronze --> quality
     quality --> silver
     quality --> rejected
@@ -32,6 +34,7 @@ flowchart TD
     warehouse --> staging
     staging --> marts
     airflow -. orchestrates .-> source
+    airflow -. orchestrates .-> ingestion
     airflow -. orchestrates .-> quality
     airflow -. orchestrates .-> warehouse
     airflow -. orchestrates .-> marts
@@ -40,15 +43,15 @@ flowchart TD
 Versión textual:
 
 ```text
-PostgreSQL source
-  -> raw CSV
-  -> bronze Parquet
-  -> quality validation
-  -> silver / rejected / audit
-  -> warehouse_source PostgreSQL
-  -> dbt staging
-  -> dbt marts
-  -> future dashboard
+PostgreSQL source -> Python ingestion
+  ├── raw CSV
+  └── bronze Parquet -> quality validation
+                         ├── silver -> warehouse_source -> dbt staging -> dbt marts
+                         ├── rejected
+                         └── audit
+
+Airflow: orchestration of existing steps
+Dashboard: outside v1.0
 ```
 
 ## ES — Componentes principales
@@ -71,6 +74,8 @@ La fuente es sintética, pero mantiene relaciones y restricciones para represent
 ### 2. Ingesta Python
 
 Python extrae las tablas fuente desde PostgreSQL y escribe snapshots locales.
+
+Raw y bronze se escriben desde el mismo DataFrame extraído; bronze no se construye releyendo el CSV raw. Las flechas discontinuas del diagrama representan coordinación de Airflow, no transferencia de datos.
 
 Responsabilidades:
 
@@ -185,6 +190,7 @@ The goal is to keep the flow reproducible, observable and easy to explain withou
 ```mermaid
 flowchart TD
     source[(PostgreSQL source)]
+    ingestion[Python ingestion]
     raw[raw CSV]
     bronze[bronze Parquet]
     quality[Python quality validation]
@@ -196,8 +202,9 @@ flowchart TD
     marts[dbt marts]
     airflow[Airflow DAG]
 
-    source --> raw
-    raw --> bronze
+    source --> ingestion
+    ingestion --> raw
+    ingestion --> bronze
     bronze --> quality
     quality --> silver
     quality --> rejected
@@ -206,6 +213,7 @@ flowchart TD
     warehouse --> staging
     staging --> marts
     airflow -. orchestrates .-> source
+    airflow -. orchestrates .-> ingestion
     airflow -. orchestrates .-> quality
     airflow -. orchestrates .-> warehouse
     airflow -. orchestrates .-> marts
@@ -214,15 +222,15 @@ flowchart TD
 Text version:
 
 ```text
-PostgreSQL source
-  -> raw CSV
-  -> bronze Parquet
-  -> quality validation
-  -> silver / rejected / audit
-  -> warehouse_source PostgreSQL
-  -> dbt staging
-  -> dbt marts
-  -> future dashboard
+PostgreSQL source -> Python ingestion
+  ├── raw CSV
+  └── bronze Parquet -> quality validation
+                         ├── silver -> warehouse_source -> dbt staging -> dbt marts
+                         ├── rejected
+                         └── audit
+
+Airflow: orchestration of existing steps
+Dashboard: outside v1.0
 ```
 
 ## EN — Main components
@@ -245,6 +253,8 @@ The source is synthetic, but it keeps relationships and constraints to represent
 ### 2. Python ingestion
 
 Python extracts source tables from PostgreSQL and writes local snapshots.
+
+Raw and bronze are written from the same extracted DataFrame; bronze is not built by rereading the raw CSV. Dashed arrows represent Airflow coordination, not data transfer.
 
 Responsibilities:
 

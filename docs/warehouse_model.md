@@ -19,6 +19,8 @@ warehouse_source.<table>
 
 La carga usa replace completo en v1.0. No carga rejected ni audit al modelo analítico.
 
+El reemplazo elimina las vistas staging dependientes mediante `CASCADE`. Los marts existentes pueden seguir mostrando la carga anterior hasta ejecutar `make dbt-run`; después de cada carga ejecuta también `make dbt-test`.
+
 ## ES — Staging
 
 Modelos staging:
@@ -73,6 +75,8 @@ una fila por product_id
 
 En v1.0 se conserva como campo auxiliar de trazabilidad del dataset sintético. No debe usarse como target de ML ni como conclusión de negocio.
 
+Tampoco debe utilizarse como feature en RFM/K-means: es una etiqueta de generación reservada para auditoría o validación sintética.
+
 ## ES — Tests dbt
 
 Los tests validan:
@@ -113,6 +117,8 @@ warehouse_source.<table>
 ```
 
 The v1.0 load uses full replace. It does not load rejected or audit data into the analytical model.
+
+Replacement drops dependent staging views through `CASCADE`. Existing marts may still show the previous load until `make dbt-run` runs; follow every load with `make dbt-test` as well.
 
 ## EN — Staging
 
@@ -167,6 +173,8 @@ one row per product_id
 `synthetic_behavior_segment` is a synthetic label used by the generator to simulate customer patterns. It is not a real business segment or an analytical result.
 
 In v1.0 it is kept as an auxiliary traceability field for the synthetic dataset. It should not be used as an ML target or business conclusion.
+
+It must not be used as an RFM/K-means feature either: it is a generation label reserved for synthetic auditing or validation.
 
 ## EN — dbt tests
 

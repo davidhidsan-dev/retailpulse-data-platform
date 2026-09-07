@@ -60,7 +60,7 @@ Puede pasarse al lanzar el DAG:
 }
 ```
 
-Si no se indica, se usa la fecha lógica del DAG.
+Si no se indica, se usa la fecha lógica del DAG; si el run manual no tiene fecha lógica, se utiliza `dag_run.run_after` en UTC.
 
 ## ES — Ejecución local
 
@@ -76,11 +76,15 @@ Abrir:
 http://localhost:8080
 ```
 
+El DAG nace pausado: actívalo y pulsa **Trigger DAG** con una fecha válida. Esta configuración local concede acceso administrativo sin autenticación. El DAG regenera la fuente sintética y comparte archivos y tablas con el flujo manual; no ejecutes ambos a la vez.
+
 Detener:
 
 ```bash
 make airflow-down
 ```
+
+Este comando detiene también PostgreSQL en el Compose combinado y conserva los volúmenes.
 
 ## ES — Docker
 
@@ -180,7 +184,7 @@ It can be passed when triggering the DAG:
 }
 ```
 
-If omitted, the DAG logical date is used.
+If omitted, the DAG logical date is used; when a manual run has no logical date, `dag_run.run_after` in UTC is used instead.
 
 ## EN — Local execution
 
@@ -196,11 +200,15 @@ Open:
 http://localhost:8080
 ```
 
+The DAG starts paused: enable it and select **Trigger DAG** with a valid date. This local configuration grants administrative access without authentication. The DAG regenerates the synthetic source and shares files and tables with the manual flow; do not run both at the same time.
+
 Stop:
 
 ```bash
 make airflow-down
 ```
+
+This command also stops PostgreSQL in the combined Compose project and preserves volumes.
 
 ## EN — Docker
 

@@ -4,6 +4,8 @@
 
 Checklist para validar RetailPulse antes de presentarlo como v1.0 técnica.
 
+Las casillas son una plantilla, no evidencia de una ejecución previa. Activa `.venv`, prepara `.env` y el perfil dbt según el [runbook](runbook.md). Sustituye `YYYY-MM-DD` por la misma fecha UTC de ingesta en todo el recorrido; espera PostgreSQL `healthy` con `make ps` antes de `make init-db`.
+
 ## ES — Checks estáticos
 
 - [ ] `make test` pasa.
@@ -119,6 +121,8 @@ Validar:
 - [ ] `load_date` es consistente.
 - [ ] El DAG solo orquesta comandos existentes.
 
+- [ ] Se revisaron los logs de cada task en la interfaz y se anotó el run ID exitoso.
+
 Detener:
 
 ```bash
@@ -141,6 +145,8 @@ make airflow-down
 ## EN — Objective
 
 Checklist to validate RetailPulse before presenting it as a technical v1.0.
+
+These checkboxes are a template, not evidence of a previous execution. Activate `.venv` and prepare `.env` and the dbt profile using the [runbook](runbook.md). Replace `YYYY-MM-DD` with the same UTC ingestion date throughout; wait for PostgreSQL to be `healthy` in `make ps` before running `make init-db`.
 
 ## EN — Static checks
 
@@ -256,6 +262,8 @@ Validate:
 - [ ] All tasks finish successfully.
 - [ ] `load_date` is consistent.
 - [ ] The DAG only orchestrates existing commands.
+
+- [ ] Each task's logs were reviewed in the UI and the successful run ID was recorded.
 
 Stop:
 

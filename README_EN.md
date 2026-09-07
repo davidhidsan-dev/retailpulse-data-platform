@@ -35,20 +35,16 @@ Not included yet: dashboard, incremental loading, Spark, Kafka, MongoDB, ML, Gen
 ## Architecture
 
 ```text
-PostgreSQL source
-    ↓
-Python ingestion
-    ↓
-raw CSV
-    ↓
-bronze Parquet + ingestion metadata
-    ↓
-Python quality validation
-    ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
-    ├── rejected Parquet
-    └── audit quality_runs.parquet
-    ↓
-Airflow optional orchestration
+PostgreSQL source → Python ingestion
+                       ├── raw CSV
+                       └── bronze Parquet + ingestion metadata
+                             ↓
+                       Python quality validation
+                         ├── silver → warehouse_source → dbt staging → dbt marts
+                         ├── rejected Parquet
+                         └── audit quality_runs.parquet
+
+Airflow: optional orchestration of the existing Python and dbt commands
 ```
 
 Airflow does not transform data. It only coordinates existing Python and dbt commands.
@@ -84,18 +80,23 @@ More detail: [`docs/architecture.md`](docs/architecture.md).
 
 ## Quick execution
 
-Prepare the environment:
+Prepare the environment (first installation; preserve `.env` and the profile if they already exist):
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 cp .env.example .env
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 cp dbt/profiles.yml.example dbt/profiles.yml
 ```
 
 PowerShell:
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 Copy-Item .env.example .env
+python -m pip install -r requirements.txt
 Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 ```
 
@@ -103,6 +104,12 @@ Start PostgreSQL and run the manual flow:
 
 ```bash
 make up
+make ps
+```
+
+Wait until PostgreSQL is `healthy` before continuing:
+
+```bash
 make init-db
 make seed-db
 make ingest-lake
@@ -113,6 +120,8 @@ make dbt-test
 ```
 
 If `make ingest-lake` and `make quality` are executed without an explicit date, they use the current UTC date. To avoid ambiguity, the Python modules also accept `--load-date`.
+
+Replace `YYYY-MM-DD` with that date. For custom connection settings, see the [runbook](docs/runbook.md): the dbt targets do not load `.env` automatically.
 
 ## Airflow execution
 
