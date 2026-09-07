@@ -1,21 +1,23 @@
-# Modelo fuente de RetailPulse
+# Source Model / Modelo Fuente
 
-## Propósito
+## ES — Propósito
 
-Este modelo representa el sistema operacional mínimo de un e-commerce. Es la fuente de PostgreSQL de la Fase 1 y todavía no constituye un warehouse ni un data lake.
+Este documento describe el modelo operacional fuente de RetailPulse. Representa un e-commerce mínimo en PostgreSQL y sirve como punto de partida del pipeline.
 
-## Tablas
+No es un warehouse ni un modelo analítico. Es una fuente transaccional simulada para practicar ingesta, validación, carga y modelado posterior.
+
+## ES — Tablas fuente
 
 | Tabla | Propósito | Clave primaria | Claves foráneas |
 |---|---|---|---|
 | `customers` | Clientes, localización y segmento sintético | `customer_id` | — |
 | `products` | Catálogo, SKU y precio vigente | `product_id` | — |
-| `inventory` | Existencias y umbral de reposición | `product_id` | `product_id → products.product_id` |
+| `inventory` | Stock y umbral de reposición | `product_id` | `product_id → products.product_id` |
 | `orders` | Cabecera, fecha y estado del pedido | `order_id` | `customer_id → customers.customer_id` |
-| `order_items` | Productos, cantidades y precio vendido | `order_item_id` | `order_id → orders.order_id`; `product_id → products.product_id` |
+| `order_items` | Productos comprados, cantidades y precio vendido | `order_item_id` | `order_id → orders.order_id`; `product_id → products.product_id` |
 | `payments` | Pago y estado asociado al pedido | `payment_id` | `order_id → orders.order_id` |
 
-## Relaciones
+## ES — Relaciones
 
 ```mermaid
 erDiagram
@@ -26,36 +28,108 @@ erDiagram
     ORDERS ||--|| PAYMENTS : has
 ```
 
-## Decisiones
+## ES — Decisiones de diseño
 
-- Las relaciones usan exclusivamente IDs técnicos: `customer_id`, `product_id`, `order_id`, `order_item_id` y `payment_id`. `first_name`, `last_name` y `email` son atributos descriptivos de cliente; no actúan como claves de relación.
-- `product_id` es la clave primaria interna y estable. `sku` es un identificador comercial único con formato `CATEGORIA-PRODUCTO-NUMERO`; puede ser comunicado o cambiado por reglas de negocio sin alterar las relaciones técnicas.
-- `product_name` es un atributo descriptivo, no una clave de relación, y no necesita ser único. El catálogo combina productos base con variantes naturales y permite nombres parecidos.
-- Cada producto tiene exactamente un registro de inventario.
-- Cada pedido contiene entre uno y tres productos distintos.
-- Cada pedido tiene un único pago y `payment_amount` coincide con la suma de sus líneas.
-- Los estados y métodos de pago están restringidos tanto en Python como en PostgreSQL.
-- Una seed maestra genera secuencias aleatorias hijas para cada entidad. Repetir volúmenes y seed reproduce el mismo dataset.
-- `seed-db` reemplaza el contenido de las tablas fuente en una transacción para evitar duplicados en reejecuciones.
+- Las relaciones usan IDs técnicos: `customer_id`, `product_id`, `order_id`, `order_item_id` y `payment_id`.
+- `email`, `first_name`, `last_name`, `sku` y `product_name` son atributos descriptivos o comerciales, no claves relacionales principales.
+- `product_id` es la clave interna estable.
+- `sku` es el identificador comercial del producto y es único.
+- Cada producto tiene un único registro de inventario.
+- Cada pedido contiene una o varias líneas en `order_items`.
+- Cada pedido tiene un único pago en `payments`.
+- Los estados de pedido y pago están restringidos por dominios controlados.
+- El generador usa una seed para que los datasets sean reproducibles.
+- `seed-db` reemplaza el contenido de las tablas fuente para evitar duplicados en reejecuciones.
 
-## Patrones de cliente para RFM
+## ES — Segmento sintético de comportamiento
 
-`synthetic_behavior_segment` es una etiqueta técnica creada exclusivamente por el generador para introducir diferencias de recencia, frecuencia y valor antes de disponer de comportamiento real:
+`synthetic_behavior_segment` es una etiqueta creada por el generador para simular patrones de recencia, frecuencia y valor.
 
-- `high_value`: menor frecuencia y selección de productos de mayor precio y cantidad.
-- `frequent`: mayor probabilidad de compra y ticket medio.
-- `occasional`: menor frecuencia y cestas pequeñas.
-- `inactive`: pedidos antiguos y baja probabilidad de compra.
-- `new`: altas y pedidos recientes.
+Valores:
 
-La columna guía la simulación y no representa una clasificación observada del negocio. **No debe utilizarse como feature ni como entrada de un modelo RFM o K-means**: hacerlo introduciría la respuesta sintética en el análisis y produciría fuga de información.
+- `high_value`
+- `frequent`
+- `occasional`
+- `inactive`
+- `new`
 
-Si se conserva en un warehouse futuro, debe tratarse únicamente como metadato de auditoría o variable de validación sintética. Debe excluirse de dimensiones de negocio, métricas RFM, datasets de entrenamiento y features analíticas.
+Esta columna no representa un segmento real de negocio. No debe interpretarse como resultado analítico ni utilizarse como target de ML.
 
-## Limitaciones
+En v1.0 puede conservarse como metadato auxiliar para explicar cómo se generaron los datos sintéticos.
 
-- Los nombres, ubicaciones y productos proceden de catálogos pequeños y controlados.
-- Los segmentos y sus ponderaciones son supuestos artificiales, no etiquetas observadas ni resultados de un modelo.
-- No se modelan promociones, impuestos, costes de envío, devoluciones parciales ni variaciones de precio históricas.
-- No se simulan cambios de inventario causados por cada pedido.
-- El dataset es reproducible y útil para desarrollo, pero no representa distribución comercial real.
+## ES — Limitaciones
+
+- Los datos son sintéticos y no representan una distribución comercial real.
+- Los catálogos de productos, países y ciudades son controlados.
+- No se modelan promociones, impuestos, envíos ni devoluciones parciales.
+- No hay histórico de cambios de precio.
+- No se simulan movimientos de inventario por cada pedido.
+- El objetivo es crear una fuente reproducible para el pipeline, no una simulación completa de un ERP.
+
+---
+
+## EN — Purpose
+
+This document describes the RetailPulse operational source model. It represents a minimal e-commerce system in PostgreSQL and acts as the starting point of the pipeline.
+
+It is not a warehouse or analytical model. It is a simulated transactional source used to practice ingestion, validation, loading and later modeling.
+
+## EN — Source tables
+
+| Table | Purpose | Primary key | Foreign keys |
+|---|---|---|---|
+| `customers` | Customers, location and synthetic segment | `customer_id` | — |
+| `products` | Catalog, SKU and current price | `product_id` | — |
+| `inventory` | Stock and reorder threshold | `product_id` | `product_id → products.product_id` |
+| `orders` | Order header, date and status | `order_id` | `customer_id → customers.customer_id` |
+| `order_items` | Purchased products, quantities and sold price | `order_item_id` | `order_id → orders.order_id`; `product_id → products.product_id` |
+| `payments` | Payment and order payment status | `payment_id` | `order_id → orders.order_id` |
+
+## EN — Relationships
+
+```mermaid
+erDiagram
+    CUSTOMERS ||--o{ ORDERS : places
+    PRODUCTS ||--|| INVENTORY : has
+    ORDERS ||--|{ ORDER_ITEMS : contains
+    PRODUCTS ||--o{ ORDER_ITEMS : appears_in
+    ORDERS ||--|| PAYMENTS : has
+```
+
+## EN — Design decisions
+
+- Relationships use technical IDs: `customer_id`, `product_id`, `order_id`, `order_item_id` and `payment_id`.
+- `email`, `first_name`, `last_name`, `sku` and `product_name` are descriptive or commercial attributes, not primary relational keys.
+- `product_id` is the stable internal key.
+- `sku` is the commercial product identifier and is unique.
+- Each product has one inventory record.
+- Each order contains one or more rows in `order_items`.
+- Each order has one payment in `payments`.
+- Order and payment statuses are restricted to controlled domains.
+- The generator uses a seed to make datasets reproducible.
+- `seed-db` replaces source table contents to avoid duplicates on reruns.
+
+## EN — Synthetic behavior segment
+
+`synthetic_behavior_segment` is a generator label used to simulate recency, frequency and value patterns.
+
+Values:
+
+- `high_value`
+- `frequent`
+- `occasional`
+- `inactive`
+- `new`
+
+This column is not a real business segment. It should not be interpreted as an analytical result or used as an ML target.
+
+In v1.0 it can be kept as an auxiliary metadata field to explain how synthetic data was generated.
+
+## EN — Limitations
+
+- The data is synthetic and does not represent a real commercial distribution.
+- Product, country and city catalogs are controlled.
+- Promotions, taxes, shipping and partial returns are not modeled.
+- There is no historical price-change model.
+- Inventory movements caused by each order are not simulated.
+- The goal is to create a reproducible pipeline source, not a full ERP simulation.

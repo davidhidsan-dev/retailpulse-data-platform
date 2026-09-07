@@ -1,12 +1,14 @@
-# Warehouse y modelo analítico — Fase 4
+# Warehouse Model / Modelo de Warehouse
 
-## Objetivo
+## ES — Objetivo
 
-La Fase 4 lleva los datos validados desde silver a PostgreSQL y usa dbt para construir un modelo analítico inicial. La carga Python y el modelado dbt permanecen separados: Python mueve datasets aprobados; dbt expresa transformaciones, dependencias, documentación y tests analíticos.
+La capa warehouse lleva los datos aprobados desde `silver` a PostgreSQL y usa dbt para construir un modelo analítico inicial.
 
-## Silver y `warehouse_source`
+Python mueve datos validados. dbt modela tablas analíticas, dependencias, documentación y tests.
 
-Silver es la salida Parquet del control de calidad y conserva la partición local por `load_date`. `warehouse_source` es un esquema lógico dentro del PostgreSQL de desarrollo que expone esas seis tablas a dbt:
+## ES — Silver y `warehouse_source`
+
+`silver` es la salida de calidad en Parquet. `warehouse_source` es el esquema PostgreSQL que expone esas tablas a dbt.
 
 ```text
 data/silver/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
@@ -15,53 +17,173 @@ data/silver/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 warehouse_source.<table>
 ```
 
-La carga usa reemplazo completo y transaccional en esta fase. Al reemplazar las tablas elimina las vistas dbt dependientes mediante `CASCADE`, por lo que siempre debe ir seguida de `dbt run`. No incluye rejected records ni el historial de auditoría.
+La carga usa replace completo en v1.0. No carga rejected ni audit al modelo analítico.
 
-## Por qué dbt
+## ES — Staging
 
-dbt mantiene las transformaciones analíticas en SQL versionado y construye el grafo entre fuentes, staging y marts mediante `source()` y `ref()`. También permite ejecutar tests declarativos sobre claves y dominios sin duplicar las reglas fila a fila que ya aplica Python antes de silver.
+Modelos staging:
 
-## Staging y marts
+- `stg_customers`
+- `stg_products`
+- `stg_inventory`
+- `stg_orders`
+- `stg_order_items`
+- `stg_payments`
 
-Los seis modelos `stg_*` son vistas simples sobre `warehouse_source`. Castean explícitamente tanto los campos de negocio como los campos técnicos, y conservan los metadatos de ingesta y calidad para trazabilidad; no agregan métricas.
+Responsabilidades:
 
-Los marts se materializan como tablas en el esquema dbt configurado, `analytics` por defecto:
+- leer desde `source('warehouse_source', ...)`.
+- seleccionar columnas explícitas.
+- aplicar casts.
+- conservar metadatos de ingesta y calidad.
+- no hacer joins.
+- no agregar métricas.
 
-- `dim_customer`: una fila por `customer_id`;
-- `dim_product`: una fila por `product_id` y su `sku` comercial;
-- `dim_date`: una fila por día entre la fecha mínima y máxima de pedidos;
-- `fact_sales`: una fila por `order_item_id`;
-- `fact_inventory`: una fila por `product_id`.
+## ES — Marts
 
-## Granos de las tablas de hechos
+Modelos marts:
 
-`fact_sales` une líneas de pedido con pedidos y pagos. Su grano es una línea de pedido, por lo que `order_item_id` debe ser único. Conserva cliente, producto, fecha, estados, método de pago, cantidad, precio y total de línea.
+- `dim_customer`
+- `dim_product`
+- `dim_date`
+- `fact_sales`
+- `fact_inventory`
 
-`fact_inventory` une el snapshot de inventario con productos. Su grano es un producto y `is_low_stock` es verdadero cuando `stock_quantity <= reorder_level`.
+`dim_customer` tiene una fila por `customer_id`.
 
-## Tests dbt
+`dim_product` tiene una fila por `product_id`.
 
-Los tests comprueban claves únicas y no nulas en dimensiones y hechos. `fact_sales` también valida los dominios de `order_status`, `payment_status` y `payment_method`. Estos tests protegen el contrato analítico; la detección y separación de rejected records continúa perteneciendo a la Fase 3 en Python.
+`dim_date` contiene días entre la fecha mínima y máxima de pedidos.
 
-## Configuración y ejecución
+`fact_sales` une líneas de pedido, pedidos y pagos. Su grano es:
 
-Crear una vez el perfil local:
-
-```powershell
-Copy-Item dbt/profiles.yml.example dbt/profiles.yml
+```text
+una fila por order_item_id
 ```
 
-Después, desde la raíz:
+`fact_inventory` une inventario con productos. Su grano es:
 
-```powershell
-make load-warehouse LOAD_DATE=2026-09-02
-make dbt-run
-make dbt-test
-make dbt-docs-generate
+```text
+una fila por product_id
 ```
 
-El perfil usa las variables `POSTGRES_*` y `DBT_SCHEMA`. Incluye valores locales de ejemplo como fallback, pero `dbt/profiles.yml` y `.env` están ignorados por Git.
+## ES — `synthetic_behavior_segment`
 
-## Limitaciones y Fase 5
+`synthetic_behavior_segment` es una etiqueta sintética usada por el generador para simular patrones de clientes. No representa un segmento real de negocio ni un resultado analítico.
 
-La carga es full refresh y no mantiene histórico de snapshots en PostgreSQL. No hay claves sustitutas, dimensiones lentamente cambiantes, métricas semánticas ni procesamiento incremental. La Fase 5 añadirá orquestación y operación coordinada del pipeline; Airflow no forma parte de esta fase.
+En v1.0 se conserva como campo auxiliar de trazabilidad del dataset sintético. No debe usarse como target de ML ni como conclusión de negocio.
+
+## ES — Tests dbt
+
+Los tests validan:
+
+- claves únicas.
+- campos no nulos.
+- dominios permitidos.
+- relaciones entre hechos y dimensiones.
+
+Estos tests protegen el contrato analítico. La separación de rejected records pertenece a la fase de calidad en Python.
+
+## ES — Limitaciones
+
+- carga full refresh / replace.
+- sin histórico de snapshots en warehouse.
+- sin SCD.
+- sin claves sustitutas.
+- sin capa semántica de métricas.
+- modelo analítico inicial y deliberadamente pequeño.
+
+---
+
+## EN — Objective
+
+The warehouse layer moves approved data from `silver` to PostgreSQL and uses dbt to build an initial analytical model.
+
+Python moves validated data. dbt models analytical tables, dependencies, documentation and tests.
+
+## EN — Silver and `warehouse_source`
+
+`silver` is the quality-approved Parquet output. `warehouse_source` is the PostgreSQL schema that exposes those tables to dbt.
+
+```text
+data/silver/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
+                              │
+                              ▼
+warehouse_source.<table>
+```
+
+The v1.0 load uses full replace. It does not load rejected or audit data into the analytical model.
+
+## EN — Staging
+
+Staging models:
+
+- `stg_customers`
+- `stg_products`
+- `stg_inventory`
+- `stg_orders`
+- `stg_order_items`
+- `stg_payments`
+
+Responsibilities:
+
+- read from `source('warehouse_source', ...)`.
+- select explicit columns.
+- apply casts.
+- preserve ingestion and quality metadata.
+- avoid joins.
+- avoid metric aggregation.
+
+## EN — Marts
+
+Mart models:
+
+- `dim_customer`
+- `dim_product`
+- `dim_date`
+- `fact_sales`
+- `fact_inventory`
+
+`dim_customer` has one row per `customer_id`.
+
+`dim_product` has one row per `product_id`.
+
+`dim_date` contains days between the minimum and maximum order dates.
+
+`fact_sales` joins order items, orders and payments. Its grain is:
+
+```text
+one row per order_item_id
+```
+
+`fact_inventory` joins inventory and products. Its grain is:
+
+```text
+one row per product_id
+```
+
+## EN — `synthetic_behavior_segment`
+
+`synthetic_behavior_segment` is a synthetic label used by the generator to simulate customer patterns. It is not a real business segment or an analytical result.
+
+In v1.0 it is kept as an auxiliary traceability field for the synthetic dataset. It should not be used as an ML target or business conclusion.
+
+## EN — dbt tests
+
+Tests validate:
+
+- unique keys.
+- non-null fields.
+- accepted domains.
+- relationships between facts and dimensions.
+
+These tests protect the analytical contract. Rejected-record separation belongs to the Python quality layer.
+
+## EN — Limitations
+
+- full refresh / replace load.
+- no warehouse snapshot history.
+- no SCD.
+- no surrogate keys.
+- no semantic metrics layer.
+- initial and deliberately small analytical model.

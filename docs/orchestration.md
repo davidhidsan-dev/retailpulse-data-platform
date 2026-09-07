@@ -1,38 +1,68 @@
-# Orquestación con Airflow
+# Orchestration / Orquestación
 
-## Objetivo de la Fase 5
+## ES — Objetivo
 
-Airflow coordina el pipeline batch completo de RetailPulse y permite observar el estado, duración y logs de cada paso desde una interfaz local. La implementación está pensada para desarrollo y demostración, no para producción.
+Airflow coordina el pipeline batch completo de RetailPulse y permite observar el estado, duración y logs de cada paso desde una interfaz local.
 
-Airflow no contiene transformaciones ni reglas de negocio. Cada task invoca una interfaz CLI ya existente, por lo que ingesta, calidad, carga y dbt siguen siendo independientes y testeables fuera del orquestador.
+La implementación está pensada para desarrollo y demostración, no para producción.
 
-## DAG y orden de ejecución
+## ES — Principio clave
 
-El DAG `retailpulse_batch_pipeline` es manual, queda pausado al crearse y ejecuta una cadena lineal con un reintento por task:
+Airflow no contiene transformaciones ni reglas de negocio.
 
-1. `init_source_schema`: crea el esquema operacional.
-2. `seed_source_data`: genera y carga la fuente sintética.
-3. `ingest_postgres_to_lake`: extrae PostgreSQL hacia raw y bronze.
-4. `validate_bronze_quality`: valida bronze y escribe silver, rejected y auditoría.
-5. `load_silver_to_warehouse`: publica la partición silver en `warehouse_source`.
-6. `dbt_run`: construye staging y marts.
-7. `dbt_test`: valida el modelo analítico.
+Cada task llama a una interfaz CLI existente. La lógica sigue viviendo en:
 
-## Fecha de carga
+- Python para generación, ingesta, calidad y carga.
+- dbt para modelado analítico y tests.
+- PostgreSQL como fuente y warehouse local.
 
-Las tasks de ingesta, calidad y warehouse comparten exactamente la misma `load_date`. En un lanzamiento manual se puede indicar en la configuración del DAG:
+## ES — DAG
+
+DAG:
+
+```text
+retailpulse_batch_pipeline
+```
+
+Orden:
+
+```text
+init_source_schema
+  >> seed_source_data
+  >> ingest_postgres_to_lake
+  >> validate_bronze_quality
+  >> load_silver_to_warehouse
+  >> dbt_run
+  >> dbt_test
+```
+
+## ES — Tasks
+
+| Task | Responsabilidad |
+|---|---|
+| `init_source_schema` | Crea el esquema fuente operacional. |
+| `seed_source_data` | Genera y carga datos sintéticos. |
+| `ingest_postgres_to_lake` | Extrae PostgreSQL hacia raw y bronze. |
+| `validate_bronze_quality` | Valida bronze y escribe silver, rejected y audit. |
+| `load_silver_to_warehouse` | Carga silver en `warehouse_source`. |
+| `dbt_run` | Construye staging y marts. |
+| `dbt_test` | Ejecuta tests dbt. |
+
+## ES — Fecha de carga
+
+Las tasks particionadas comparten la misma `load_date`.
+
+Puede pasarse al lanzar el DAG:
 
 ```json
 {
-  "load_date": "2026-09-03"
+  "load_date": "YYYY-MM-DD"
 }
 ```
 
-Si no se indica, se utiliza la fecha lógica del DAG en formato `YYYY-MM-DD`. Como Airflow 3 puede no asignar fecha lógica a una ejecución exclusivamente manual, en ese caso se usa la fecha UTC de inicio del run. El valor se entrega a Bash mediante una variable de entorno templada y cada CLI vuelve a validar su formato.
+Si no se indica, se usa la fecha lógica del DAG.
 
-## Ejecución local con Airflow
-
-El entorno opcional usa la imagen fijada de Airflow y el modo `standalone`, suficiente para una demostración local. Se conecta al servicio PostgreSQL existente usando el hostname interno `postgres`; monta el repositorio para compartir `data/`, `dags/` y `dbt/`, y conserva los metadatos de Airflow en un volumen Docker. Las dependencias Python de RetailPulse, incluido dbt, se instalan en un virtualenv aislado dentro de la imagen para no alterar las dependencias internas de Airflow.
+## ES — Ejecución local
 
 ```bash
 make airflow-up
@@ -40,19 +70,32 @@ make airflow-ps
 make airflow-logs
 ```
 
-Cuando el servicio esté saludable, abre `http://localhost:8080`. Este entorno local desactiva la autenticación y concede permisos de administración; no debe exponerse fuera del equipo de desarrollo. Activa `retailpulse_batch_pipeline`, pulsa **Trigger DAG** y añade opcionalmente la configuración JSON anterior.
+Abrir:
 
-Para detenerlo sin borrar volúmenes:
+```text
+http://localhost:8080
+```
+
+Detener:
 
 ```bash
 make airflow-down
 ```
 
-El primer arranque construye la imagen e instala las dependencias, por lo que tarda más que los siguientes.
+## ES — Docker
 
-## Ejecución sin Airflow
+Airflow se define en `docker-compose.airflow.yml`, separado del `docker-compose.yml` principal.
 
-El flujo manual sigue disponible y no depende del entorno de orquestación:
+Motivos:
+
+- mantener PostgreSQL como flujo básico.
+- evitar que Airflow pese sobre el uso manual.
+- permitir orquestación opcional.
+- aislar dependencias de Airflow.
+
+## ES — Ejecución sin Airflow
+
+El flujo manual sigue disponible:
 
 ```bash
 make up
@@ -65,14 +108,132 @@ make dbt-run
 make dbt-test
 ```
 
-La misma fecha debe usarse desde la ingesta hasta la carga de warehouse cuando se ejecutan los módulos directamente con `--load-date`.
+## ES — Limitaciones
 
-## Limitaciones actuales
+- Airflow es local/dev.
+- DAG manual y lineal.
+- Sin backfills avanzados.
+- Sin alertas externas.
+- Sin SLA.
+- Sin gestión productiva de secretos.
+- El seeding forma parte de la demo; en una fuente real viviría fuera del DAG.
 
-- Entorno local de desarrollo, no despliegue de producción.
-- Pipeline de carga completa, sin incrementalidad.
-- DAG manual y lineal, sin backfills avanzados.
-- Sin alertas externas, SLA ni gestión productiva de secretos.
-- El seeding forma parte de la demostración; una fuente real se administraría fuera del DAG.
+---
 
-La siguiente fase podrá centrarse en la capa gold, visualización y mejoras operativas sin trasladar lógica de transformación a Airflow.
+## EN — Objective
+
+Airflow coordinates the full RetailPulse batch pipeline and makes step status, duration and logs observable from a local interface.
+
+The implementation is intended for development and demonstration, not production.
+
+## EN — Key principle
+
+Airflow does not contain transformations or business rules.
+
+Each task calls an existing CLI interface. Logic remains in:
+
+- Python for generation, ingestion, quality and loading.
+- dbt for analytical modeling and tests.
+- PostgreSQL as source and local warehouse.
+
+## EN — DAG
+
+DAG:
+
+```text
+retailpulse_batch_pipeline
+```
+
+Order:
+
+```text
+init_source_schema
+  >> seed_source_data
+  >> ingest_postgres_to_lake
+  >> validate_bronze_quality
+  >> load_silver_to_warehouse
+  >> dbt_run
+  >> dbt_test
+```
+
+## EN — Tasks
+
+| Task | Responsibility |
+|---|---|
+| `init_source_schema` | Creates the operational source schema. |
+| `seed_source_data` | Generates and loads synthetic data. |
+| `ingest_postgres_to_lake` | Extracts PostgreSQL into raw and bronze. |
+| `validate_bronze_quality` | Validates bronze and writes silver, rejected and audit. |
+| `load_silver_to_warehouse` | Loads silver into `warehouse_source`. |
+| `dbt_run` | Builds staging and marts. |
+| `dbt_test` | Runs dbt tests. |
+
+## EN — Load date
+
+Partitioned tasks share the same `load_date`.
+
+It can be passed when triggering the DAG:
+
+```json
+{
+  "load_date": "YYYY-MM-DD"
+}
+```
+
+If omitted, the DAG logical date is used.
+
+## EN — Local execution
+
+```bash
+make airflow-up
+make airflow-ps
+make airflow-logs
+```
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+Stop:
+
+```bash
+make airflow-down
+```
+
+## EN — Docker
+
+Airflow is defined in `docker-compose.airflow.yml`, separated from the main `docker-compose.yml`.
+
+Reasons:
+
+- keep PostgreSQL as the basic flow.
+- avoid making manual usage heavier.
+- make orchestration optional.
+- isolate Airflow dependencies.
+
+## EN — Execution without Airflow
+
+The manual flow remains available:
+
+```bash
+make up
+make init-db
+make seed-db
+make ingest-lake
+make quality
+make load-warehouse LOAD_DATE=YYYY-MM-DD
+make dbt-run
+make dbt-test
+```
+
+## EN — Limitations
+
+- Airflow is local/dev.
+- Manual and linear DAG.
+- No advanced backfills.
+- No external alerts.
+- No SLA.
+- No production secret management.
+- Seeding is part of the demo; with a real source it would live outside the DAG.
