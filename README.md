@@ -1,16 +1,18 @@
 # RetailPulse — E-commerce Data Engineering Platform
 
+![CI](https://github.com/davidhidsan-dev/retailpulse-data-platform/actions/workflows/ci.yml/badge.svg)
+
 [English version](README_EN.md)
 
 Proyecto de portfolio de Data Engineering que simula una plataforma batch de e-commerce de extremo a extremo: fuente operacional en PostgreSQL, ingesta a un data lake local, validación de calidad, separación de registros rechazados, carga a warehouse, modelado con dbt y orquestación local opcional con Airflow.
 
-El objetivo no es simular un despliegue productivo real, sino construir un flujo reproducible, entendible y defendible técnicamente.
+El foco está en construir un flujo batch reproducible, trazable y técnicamente sólido en un entorno local, no en replicar una plataforma productiva a escala.
 
 ## Qué problema simula
 
-Una empresa de e-commerce tiene datos operacionales repartidos en clientes, productos, inventario, pedidos, líneas de pedido y pagos. Antes de analizarlos, esos datos deben extraerse, almacenarse por capas, validarse, cargarse en un warehouse y modelarse en tablas analíticas.
+Una empresa de e-commerce tiene datos operacionales repartidos en clientes, productos, inventario, pedidos, líneas de pedido y pagos. Antes de poder analizarlos, esos datos deben extraerse, almacenarse por capas, validarse, cargarse en un warehouse y transformarse en modelos analíticos útiles.
 
-RetailPulse reproduce ese flujo con datos sintéticos relacionales y controlados.
+RetailPulse reproduce ese proceso con datos sintéticos relacionales y controlados.
 
 ## Estado actual
 
@@ -30,21 +32,25 @@ Incluye:
 - orquestación local opcional con Airflow.
 - tests ligeros con pytest y GitHub Actions.
 
-No incluye todavía dashboard, incrementalidad, Spark, Kafka, MongoDB, ML, GenAI ni despliegue productivo.
+La v1.0 cubre el pipeline completo hasta los marts de dbt e incluye orquestación local con Airflow. El dashboard y otras extensiones quedan para fases posteriores.
 
 ## Arquitectura
 
 ```text
-PostgreSQL source → Python ingestion
-                       ├── raw CSV
-                       └── bronze Parquet + ingestion metadata
-                             ↓
-                       Python quality validation
-                         ├── silver → warehouse_source → dbt staging → dbt marts
-                         ├── rejected Parquet
-                         └── audit quality_runs.parquet
+PostgreSQL source
+    ↓
+Python ingestion
+    ↓
+raw CSV
+    ↓
+bronze Parquet + ingestion metadata
+    ↓
+Python quality validation
+    ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
+    ├── rejected Parquet
+    └── audit quality_runs.parquet
 
-Airflow: optional orchestration of the existing Python and dbt commands
+Airflow orchestrates the end-to-end batch flow above.
 ```
 
 Airflow no transforma datos. Solo coordina comandos Python y dbt ya existentes.
@@ -67,49 +73,34 @@ Más detalle: [`docs/architecture.md`](docs/architecture.md).
 
 ## Qué demuestra
 
-- Diseño de una fuente relacional sintética.
-- Pipeline batch reproducible.
-- Separación entre raw, bronze, silver, rejected y audit.
-- Validación determinista de calidad.
-- Conservación de registros rechazados con motivo de rechazo.
-- Carga de datos aprobados a una capa warehouse.
-- Modelado analítico con dbt.
-- Tests dbt de contratos analíticos.
-- Orquestación con Airflow sin mover lógica de negocio al DAG.
-- Documentación de decisiones, limitaciones y ejecución.
+- Diseño de un pipeline batch por capas con trazabilidad de ejecución.
+- Separación clara entre ingesta, calidad, modelado y orquestación.
+- Gestión explícita de registros válidos, rechazados y auditoría.
+- Modelado dimensional con hechos y dimensiones construidos a partir de datos previamente validados.
+- Reejecución controlada e idempotencia práctica mediante particiones y cargas replace.
+- Uso de tests y documentación para definir contratos técnicos y analíticos.
 
 ## Ejecución rápida
 
-Preparar entorno (primera instalación; conserva `.env` y el perfil si ya existen):
+Preparar entorno:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 cp .env.example .env
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 cp dbt/profiles.yml.example dbt/profiles.yml
 ```
 
 En PowerShell:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 Copy-Item .env.example .env
-python -m pip install -r requirements.txt
 Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 ```
 
-Levantar PostgreSQL y ejecutar flujo manual:
+Levantar PostgreSQL y ejecutar el flujo manual:
 
 ```bash
 make up
-make ps
-```
-
-Espera a que PostgreSQL aparezca `healthy` antes de continuar:
-
-```bash
 make init-db
 make seed-db
 make ingest-lake
@@ -119,9 +110,7 @@ make dbt-run
 make dbt-test
 ```
 
-Si `make ingest-lake` y `make quality` se ejecutan sin fecha explícita, usan la fecha UTC actual. Para evitar dudas, los módulos Python aceptan `--load-date`.
-
-Sustituye `YYYY-MM-DD` por esa fecha. Si personalizas la conexión, consulta el [runbook](docs/runbook.md): los targets dbt no cargan `.env` automáticamente.
+Si `make ingest-lake` y `make quality` se ejecutan sin fecha explícita, usan la fecha UTC actual. Para evitar dudas, los módulos Python también aceptan `--load-date`.
 
 ## Ejecución con Airflow
 
@@ -178,7 +167,7 @@ Los registros rechazados conservan las columnas originales y añaden:
 - `quality_checked_at`
 - `rejection_reason`
 
-Rejected no alimenta los marts para no contaminar métricas de negocio.
+Rejected no alimenta los marts para evitar contaminar las métricas de negocio.
 
 Más detalle: [`docs/data_quality.md`](docs/data_quality.md).
 
@@ -186,7 +175,7 @@ Más detalle: [`docs/data_quality.md`](docs/data_quality.md).
 
 Como la fuente sintética normal es consistente, una ejecución puede producir cero rejected records. Eso es correcto.
 
-Para demostrar el circuito de rechazo:
+Para demostrar de forma controlada el circuito de rechazo:
 
 ```bash
 make quality-demo SOURCE_LOAD_DATE=YYYY-MM-DD
@@ -257,6 +246,12 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 - [`docs/technical_decisions.md`](docs/technical_decisions.md)
 - [`docs/v1_validation_checklist.md`](docs/v1_validation_checklist.md)
 
+## Nota sobre el desarrollo
+
+Este proyecto se ha desarrollado con apoyo de Codex como asistente de programación y aprendizaje. Se ha utilizado para contrastar decisiones técnicas, depurar errores, revisar alternativas y acelerar tareas de implementación y documentación.
+
+La arquitectura del pipeline, el alcance del proyecto, la validación de resultados, las decisiones finales y la revisión del código se han trabajado de forma consciente durante el desarrollo.
+
 ## Limitaciones
 
 - Los datos son sintéticos.
@@ -272,7 +267,7 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 ## Próximos pasos razonables
 
 1. Crear un dashboard sencillo sobre los marts dbt.
-2. Añadir métricas de negocio más claras.
-3. Mejorar la carga warehouse con incrementalidad o snapshots.
-4. Añadir checks operativos de frescura y conteos.
-5. Incorporar Spark, Kafka, MongoDB o ML solo como extensiones separadas y justificadas.
+2. Añadir métricas de negocio orientadas a consumo analítico.
+3. Explorar una estrategia incremental para las cargas.
+4. Añadir checks operativos de frescura y volumen.
+5. Evaluar extensiones adicionales solo cuando resuelvan un problema concreto del proyecto.
