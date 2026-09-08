@@ -202,42 +202,6 @@ Append sin control.
 
 No conserva histórico ni demuestra incrementalidad.
 
-## ES — TD-012 No Spark, Kafka, MongoDB, ML ni GenAI en v1.0
-
-### Contexto
-
-Añadir demasiadas herramientas puede hacer el proyecto menos claro.
-
-### Decisión
-
-v1.0 se centra en batch, calidad, warehouse, dbt y Airflow.
-
-### Alternativa simple
-
-Añadir todo el roadmap ya.
-
-### Limitación
-
-Es menos vistoso, pero más coherente y defendible.
-
-## ES — TD-013 Dashboard fuera de v1.0
-
-### Contexto
-
-Primero debe cerrarse la plataforma técnica.
-
-### Decisión
-
-Dejar dashboard para la siguiente fase.
-
-### Alternativa simple
-
-Crear visualización rápida ya.
-
-### Limitación
-
-El repo es menos visual, pero evita construir una capa de consumo sobre una base no cerrada.
-
 ---
 
 ## EN — Objective
@@ -441,39 +405,3 @@ Append without control.
 ### Limitation
 
 It does not preserve history or demonstrate incremental loading.
-
-## EN — TD-012 No Spark, Kafka, MongoDB, ML or GenAI in v1.0
-
-### Context
-
-Adding too many tools can make the project less clear.
-
-### Decision
-
-v1.0 focuses on batch, quality, warehouse, dbt and Airflow.
-
-### Simple alternative
-
-Add the whole roadmap now.
-
-### Limitation
-
-It is less flashy, but more coherent and defensible.
-
-## EN — TD-013 Dashboard outside v1.0
-
-### Context
-
-The technical platform should be closed first.
-
-### Decision
-
-Leave the dashboard for the next phase.
-
-### Simple alternative
-
-Create a quick visualization now.
-
-### Limitation
-
-The repo is less visual, but avoids building a consumption layer on an unfinished base.
