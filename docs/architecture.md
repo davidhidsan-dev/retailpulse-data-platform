@@ -4,7 +4,7 @@
 
 RetailPulse implementa una plataforma batch local para un e-commerce sintético. La arquitectura separa fuente operacional, ingesta, almacenamiento por capas, calidad, carga a warehouse, modelado analítico y orquestación.
 
-El objetivo es que el flujo sea reproducible, observable y fácil de explicar sin convertir el proyecto en una plataforma productiva sobredimensionada.
+El diseño prioriza la separación de responsabilidades y la trazabilidad entre capas, manteniendo una función clara para cada componente.
 
 ## ES — Flujo general
 
@@ -163,19 +163,7 @@ rejected -> diagnóstico / auditoría / posible reproceso
 
 ## ES — Fuera de v1.0
 
-No forman parte de v1.0:
-
-- dashboard.
-- incrementalidad.
-- Spark.
-- Kafka.
-- MongoDB.
-- ML.
-- GenAI.
-- despliegue productivo.
-- alertas externas.
-- SCD.
-- capa semántica de métricas.
+La v1.0 no incluye dashboard, cargas incrementales ni despliegue productivo. Otras extensiones tecnológicas se evaluarán por separado si aportan valor al proyecto.
 
 ---
 
@@ -183,7 +171,7 @@ No forman parte de v1.0:
 
 RetailPulse implements a local batch platform for a synthetic e-commerce business. The architecture separates operational source, ingestion, layered storage, quality, warehouse loading, analytical modeling and orchestration.
 
-The goal is to keep the flow reproducible, observable and easy to explain without turning the project into an overbuilt production platform.
+The design prioritizes separation of responsibilities and traceability across layers, keeping a clear purpose for each component.
 
 ## EN — General flow
 
@@ -342,16 +330,4 @@ rejected -> diagnosis / audit / possible reprocessing
 
 ## EN — Outside v1.0
 
-The following are outside v1.0:
-
-- dashboard.
-- incremental loading.
-- Spark.
-- Kafka.
-- MongoDB.
-- ML.
-- GenAI.
-- production deployment.
-- external alerts.
-- SCD.
-- semantic metrics layer.
+v1.0 does not include a dashboard, incremental loading or production deployment. Other technology extensions will be evaluated separately if they add value to the project.
