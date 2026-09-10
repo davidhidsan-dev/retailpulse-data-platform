@@ -1,5 +1,6 @@
 """In-memory tests for the RetailPulse synthetic source data."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -18,6 +19,9 @@ from src.synthetic_data.generate_retail_data import (
     PRODUCT_CATALOG,
     REFERENCE_DATE,
     SYNTHETIC_BEHAVIOR_SEGMENTS,
+    _order_window,
+    _timestamp_between,
+    _timestamp_days_ago,
     generate_all_data,
     parse_args,
 )
@@ -31,6 +35,42 @@ def synthetic_data() -> dict[str, pd.DataFrame]:
         n_orders=1_000,
         seed=42,
     )
+
+
+def test_timestamp_between_rejects_an_inverted_interval() -> None:
+    generator = np.random.default_rng(42)
+    start = REFERENCE_DATE
+    end = REFERENCE_DATE - pd.Timedelta(days=1)
+
+    with pytest.raises(ValueError, match="end must be greater"):
+        _timestamp_between(generator, start, end)
+
+
+def test_timestamp_between_accepts_a_single_possible_timestamp() -> None:
+    generator = np.random.default_rng(42)
+
+    assert _timestamp_between(generator, REFERENCE_DATE, REFERENCE_DATE) == (
+        REFERENCE_DATE
+    )
+
+
+@pytest.mark.parametrize(
+    ("minimum_days", "maximum_days"),
+    [(-1, 10), (10, 9)],
+)
+def test_timestamp_days_ago_rejects_invalid_ranges(
+    minimum_days: int,
+    maximum_days: int,
+) -> None:
+    generator = np.random.default_rng(42)
+
+    with pytest.raises(ValueError, match="maximum_days"):
+        _timestamp_days_ago(generator, minimum_days, maximum_days)
+
+
+def test_order_window_rejects_unknown_segments() -> None:
+    with pytest.raises(ValueError, match="Unsupported synthetic behavior segment"):
+        _order_window(REFERENCE_DATE - pd.Timedelta(days=100), "unknown")
 
 
 @pytest.mark.parametrize(

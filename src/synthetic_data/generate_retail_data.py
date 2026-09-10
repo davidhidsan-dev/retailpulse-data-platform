@@ -230,6 +230,12 @@ def _timestamp_days_ago(
     minimum_days: int,
     maximum_days: int,
 ) -> pd.Timestamp:
+    if minimum_days < 0 or maximum_days < minimum_days:
+        raise ValueError(
+            "maximum_days must be greater than or equal to a non-negative "
+            "minimum_days."
+        )
+
     days = int(rng.integers(minimum_days, maximum_days + 1))
     seconds = int(rng.integers(0, 86_400))
     return REFERENCE_DATE - pd.Timedelta(days=days, seconds=seconds)
@@ -240,7 +246,13 @@ def _timestamp_between(
     start: pd.Timestamp,
     end: pd.Timestamp,
 ) -> pd.Timestamp:
-    available_seconds = max(1, int((end - start).total_seconds()))
+    if end < start:
+        raise ValueError("end must be greater than or equal to start.")
+
+    available_seconds = int((end - start).total_seconds())
+    if available_seconds == 0:
+        return start
+
     return start + pd.Timedelta(
         seconds=int(rng.integers(0, available_seconds))
     )
@@ -355,6 +367,9 @@ def _order_window(
     customer_created_at: pd.Timestamp,
     segment: str,
 ) -> tuple[pd.Timestamp, pd.Timestamp]:
+    if segment not in SYNTHETIC_BEHAVIOR_SEGMENTS:
+        raise ValueError(f"Unsupported synthetic behavior segment: {segment!r}.")
+
     if segment == "inactive":
         return (
             max(customer_created_at, REFERENCE_DATE - pd.Timedelta(days=540)),
