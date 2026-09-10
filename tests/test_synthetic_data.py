@@ -19,6 +19,8 @@ from src.synthetic_data.generate_retail_data import (
     PRODUCT_CATALOG,
     REFERENCE_DATE,
     SYNTHETIC_BEHAVIOR_SEGMENTS,
+    VARIANT_PRICE_MULTIPLIERS,
+    _apply_variant_price,
     _order_window,
     _timestamp_between,
     _timestamp_days_ago,
@@ -120,6 +122,27 @@ def test_reference_catalog_has_required_variety(
         for variant in category_variants
     )
     assert synthetic_data["products"]["product_name"].str.endswith(variants).all()
+
+
+def test_every_product_variant_has_a_price_multiplier() -> None:
+    configured_variants = {
+        variant
+        for category_variants in CATEGORY_VARIANTS.values()
+        for variant in category_variants
+    }
+
+    assert set(VARIANT_PRICE_MULTIPLIERS) == configured_variants
+    assert (
+        VARIANT_PRICE_MULTIPLIERS["Premium"]
+        > VARIANT_PRICE_MULTIPLIERS["Plus"]
+        > VARIANT_PRICE_MULTIPLIERS["Basic"]
+    )
+
+
+def test_product_variant_adjusts_the_same_base_price() -> None:
+    assert _apply_variant_price(100.0, "Basic") == 85.0
+    assert _apply_variant_price(100.0, "Plus") == 110.0
+    assert _apply_variant_price(100.0, "Premium") == 130.0
 
 
 def test_product_prices_are_positive(

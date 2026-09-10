@@ -202,6 +202,24 @@ CATEGORY_VARIANTS = {
     "Fashion": ("Basic", "Plus", "Classic", "Urban", "Premium", "Essential"),
 }
 
+VARIANT_PRICE_MULTIPLIERS = {
+    "Pocket": 0.80,
+    "Basic": 0.85,
+    "Essential": 0.90,
+    "Mini": 0.90,
+    "Compact": 0.95,
+    "Classic": 1.00,
+    "Practical": 1.00,
+    "Modern": 1.05,
+    "Urban": 1.05,
+    "Plus": 1.10,
+    "Illustrated": 1.10,
+    "Pro": 1.20,
+    "Advanced": 1.20,
+    "Max": 1.25,
+    "Premium": 1.30,
+}
+
 SEGMENT_ORDER_WEIGHTS = {
     "high_value": 0.4,
     "frequent": 4.5,
@@ -223,6 +241,10 @@ def _get_rng(rng: np.random.Generator | None) -> np.random.Generator:
 
 def _empty_dataframe(columns: Sequence[str]) -> pd.DataFrame:
     return pd.DataFrame(columns=list(columns))
+
+
+def _apply_variant_price(base_price: float, variant: str) -> float:
+    return round(base_price * VARIANT_PRICE_MULTIPLIERS[variant], 2)
 
 
 def _timestamp_days_ago(
@@ -323,15 +345,14 @@ def generate_products(
             catalogue_entries[int(generator.integers(0, len(catalogue_entries)))]
         )
         variant = generator.choice(CATEGORY_VARIANTS[category])
+        base_price = float(generator.uniform(minimum_price, maximum_price))
         records.append(
             {
                 "product_id": int(product_id),
                 "sku": f"{category_code}-{product_code}-{product_id:04d}",
                 "product_name": f"{base_name} {variant}",
                 "category": category,
-                "unit_price": round(
-                    float(generator.uniform(minimum_price, maximum_price)), 2
-                ),
+                "unit_price": _apply_variant_price(base_price, variant),
                 "created_at": _timestamp_days_ago(generator, 1, 540),
             }
         )

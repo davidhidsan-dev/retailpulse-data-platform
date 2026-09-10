@@ -34,6 +34,7 @@ erDiagram
 - `email`, `first_name`, `last_name`, `sku` y `product_name` son atributos descriptivos o comerciales, no claves relacionales principales.
 - `product_id` es la clave interna estable.
 - `sku` es el identificador comercial del producto y es único.
+- La variante del nombre modifica el precio base con un multiplicador sencillo; las variantes premium tienden a ser más caras y las básicas o compactas, más baratas.
 - Cada producto tiene un único registro de inventario.
 - Cada pedido contiene una o varias líneas en `order_items`.
 - Cada pedido tiene un único pago en `payments`.
@@ -102,6 +103,7 @@ erDiagram
 - `email`, `first_name`, `last_name`, `sku` and `product_name` are descriptive or commercial attributes, not primary relational keys.
 - `product_id` is the stable internal key.
 - `sku` is the commercial product identifier and is unique.
+- The name variant adjusts the base price with a simple multiplier; premium variants tend to cost more, while basic or compact variants tend to cost less.
 - Each product has one inventory record.
 - Each order contains one or more rows in `order_items`.
 - Each order has one payment in `payments`.
