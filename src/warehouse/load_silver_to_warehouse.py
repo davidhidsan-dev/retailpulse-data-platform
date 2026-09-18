@@ -14,7 +14,12 @@ import pandas as pd
 from sqlalchemy import Engine
 
 from src.utils.database import SOURCE_TABLE_LOAD_ORDER, get_engine
-from src.utils.paths import DEFAULT_DATA_ROOT, build_lake_path, resolve_load_date
+from src.utils.paths import (
+    DEFAULT_DATA_ROOT,
+    build_audit_path,
+    build_lake_path,
+    resolve_load_date,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -68,6 +73,50 @@ def write_warehouse_table(
     )
 
 
+def require_approved_quality_run(
+    load_date: date,
+    tables: Sequence[str],
+    data_root: Path | str = DEFAULT_DATA_ROOT,
+) -> tuple[str, dict[str, int]]:
+    """Require the latest audit run for this partition to approve every table."""
+    audit_path = build_audit_path(data_root)
+    if not audit_path.is_file():
+        raise ValueError(f"No quality audit found for load_date={load_date}")
+
+    audit = pd.read_parquet(audit_path)
+    required = {
+        "load_date", "source_system", "quality_run_id", "table_name",
+        "status", "valid_rows",
+    }
+    missing = required.difference(audit.columns)
+    if missing:
+        raise ValueError(f"Quality audit is missing columns: {', '.join(sorted(missing))}")
+
+    partition_audit = audit.loc[
+        audit["load_date"].eq(load_date.isoformat())
+        & audit["source_system"].eq(SOURCE_SYSTEM)
+    ]
+    if partition_audit.empty:
+        raise ValueError(f"No quality audit found for load_date={load_date}")
+
+    run_id = partition_audit.iloc[-1]["quality_run_id"]
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("Latest quality audit has no quality_run_id")
+    latest_run = partition_audit.loc[partition_audit["quality_run_id"].eq(run_id)]
+    expected_rows: dict[str, int] = {}
+    for table in tables:
+        table_audit = latest_run.loc[latest_run["table_name"].eq(table)]
+        if len(table_audit) != 1 or table_audit.iloc[0]["status"] not in {
+            "passed", "warning"
+        }:
+            raise ValueError(
+                f"Latest quality run {run_id} did not approve {table} "
+                f"for load_date={load_date}"
+            )
+        expected_rows[table] = int(table_audit.iloc[0]["valid_rows"])
+    return run_id, expected_rows
+
+
 def load_silver_to_warehouse(
     load_date: date | str | None = None,
     *,
@@ -90,12 +139,29 @@ def load_silver_to_warehouse(
             f"Warehouse schema SQL not found: {warehouse_schema_path}"
         )
 
+    quality_run_id, expected_rows = require_approved_quality_run(
+        resolved_date, selected_tables, data_root
+    )
+
     silver_frames: dict[str, pd.DataFrame] = {}
     silver_paths: dict[str, Path] = {}
     for table in selected_tables:
         dataframe, silver_path = read_silver_table(
             table, resolved_date, data_root
         )
+        if len(dataframe) != expected_rows[table]:
+            raise ValueError(
+                f"{table} silver row count {len(dataframe)} does not match "
+                f"quality run {quality_run_id}: {expected_rows[table]}"
+            )
+        if (
+            "quality_run_id" not in dataframe.columns
+            or dataframe["quality_run_id"].isna().any()
+            or not dataframe["quality_run_id"].eq(quality_run_id).all()
+        ):
+            raise ValueError(
+                f"{table} silver does not match latest quality run {quality_run_id}"
+            )
         silver_frames[table] = dataframe
         silver_paths[table] = silver_path
 

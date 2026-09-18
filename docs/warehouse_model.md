@@ -19,6 +19,8 @@ warehouse_source.<table>
 
 La carga usa replace completo en v1.0. No carga rejected ni audit al modelo analítico.
 
+Antes de iniciar la transacción, la carga comprueba que la última ejecución de calidad para esa `load_date` aprobó todas las tablas. Verifica también el número de filas y el `quality_run_id` de cada archivo silver. Si falta la auditoría, la ejecución falló o un archivo pertenece a otra ejecución, no modifica el warehouse.
+
 El reemplazo elimina las vistas staging dependientes mediante `CASCADE`. Los marts existentes pueden seguir mostrando la carga anterior hasta ejecutar `make dbt-run`; después de cada carga ejecuta también `make dbt-test`.
 
 ## ES — Staging
@@ -117,6 +119,8 @@ warehouse_source.<table>
 ```
 
 The v1.0 load uses full replace. It does not load rejected or audit data into the analytical model.
+
+Before starting the transaction, the loader checks that the latest quality run for the `load_date` approved every table. It also verifies each silver file's row count and `quality_run_id`. If the audit is missing, the run failed, or a file belongs to another run, it leaves the warehouse unchanged.
 
 Replacement drops dependent staging views through `CASCADE`. Existing marts may still show the previous load until `make dbt-run` runs; follow every load with `make dbt-test` as well.
 
