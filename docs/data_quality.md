@@ -96,7 +96,18 @@ Estados:
 
 - `passed`: no hay rejected.
 - `warning`: hay rejected.
-- `failed`: error no controlado durante la validación.
+- `failed`: error de validación o una tabla sin filas válidas.
+
+## ES — Publicación de silver
+
+La validación se detiene si alguna tabla no produce filas válidas, incluso si bronze
+estaba vacía. Comprueba todas las tablas antes de publicar archivos silver y
+registra `failed` en audit para la tabla que bloqueó la ejecución. Conserva sus
+registros rechazados para diagnóstico.
+
+La opción `--allow-empty` permite omitir este control en demostraciones
+controladas. `make quality-demo` la utiliza porque un dataset pequeño puede
+tener una única fila por tabla y rechazarla deliberadamente.
 
 ## ES — Ejecución
 
@@ -245,7 +256,18 @@ Statuses:
 
 - `passed`: no rejected rows.
 - `warning`: rejected rows exist.
-- `failed`: uncontrolled validation error.
+- `failed`: validation error or a table with no valid rows.
+
+## EN — Silver publication
+
+Validation stops when any table has no valid rows, including an empty bronze
+input. It checks every table before publishing silver files and records `failed`
+for the table that blocked the run. Its rejected records remain available for
+diagnosis.
+
+The `--allow-empty` option bypasses this check for controlled demonstrations.
+`make quality-demo` uses it because a small dataset can have just one row per
+table and deliberately reject it.
 
 ## EN — Execution
 

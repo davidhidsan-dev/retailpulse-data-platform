@@ -296,8 +296,9 @@ def validate_bronze_quality(
     tables: Sequence[str] = SOURCE_TABLES,
     quality_run_id: str | None = None,
     quality_checked_at: pd.Timestamp | str | None = None,
+    allow_empty: bool = False,
 ) -> dict[str, QualityResult]:
-    """Validate bronze tables and persist silver, rejected and audit outputs."""
+    """Validate bronze and require non-empty silver tables before publishing."""
     resolved_date = resolve_load_date(load_date)
     selected_tables = tuple(tables)
     unsupported = [table for table in selected_tables if table not in SOURCE_TABLES]
@@ -332,6 +333,7 @@ def validate_bronze_quality(
             )
             raise
 
+    validated_frames: dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
     results: dict[str, QualityResult] = {}
     audit_records: list[dict[str, object]] = []
     try:
@@ -344,6 +346,18 @@ def validate_bronze_quality(
                 quality_run_id=run_id,
                 quality_checked_at=checked_at,
             )
+            validated_frames[table] = (valid, rejected)
+            if valid.empty and not allow_empty:
+                write_quality_table(
+                    rejected, "rejected", table, resolved_date, data_root
+                )
+                raise ValueError(
+                    f"{table} has no valid rows; silver was not published."
+                )
+
+        for table in selected_tables:
+            source = bronze_frames[table]
+            valid, rejected = validated_frames[table]
             silver_path = write_quality_table(
                 valid, "silver", table, resolved_date, data_root
             )
@@ -385,7 +399,8 @@ def validate_bronze_quality(
                 status,
             )
     except Exception:
-        failed_table = selected_tables[len(results)]
+        failed_table = table
+        failed_frames = validated_frames.get(failed_table)
         audit_records.append(
             {
                 "quality_run_id": run_id,
@@ -395,7 +410,7 @@ def validate_bronze_quality(
                 "table_name": failed_table,
                 "input_rows": len(bronze_frames[failed_table]),
                 "valid_rows": 0,
-                "rejected_rows": 0,
+                "rejected_rows": len(failed_frames[1]) if failed_frames else 0,
                 "status": "failed",
             }
         )
@@ -425,6 +440,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="UTC partition date in YYYY-MM-DD format; defaults to today",
     )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Allow empty silver tables for controlled quality demonstrations",
+    )
     return parser.parse_args(argv)
 
 
@@ -432,7 +452,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     """CLI entry point for bronze data-quality validation."""
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    results = validate_bronze_quality(load_date=args.load_date)
+    results = validate_bronze_quality(
+        load_date=args.load_date, allow_empty=args.allow_empty
+    )
     LOGGER.info(
         "Quality run completed: %s tables, %s valid rows, %s rejected rows, "
         "quality_run_id=%s",

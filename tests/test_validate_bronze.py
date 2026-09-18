@@ -207,6 +207,8 @@ def test_parse_args_parses_load_date() -> None:
 
     assert args.load_date == LOAD_DATE
     assert defaults.load_date is None
+    assert not defaults.allow_empty
+    assert parse_args(["--allow-empty"]).allow_empty
 
 
 def test_missing_bronze_partition_records_failed_audit(tmp_path: Path) -> None:
@@ -223,3 +225,45 @@ def test_missing_bronze_partition_records_failed_audit(tmp_path: Path) -> None:
     assert len(audit) == 1
     assert audit.loc[0, "table_name"] == "customers"
     assert audit.loc[0, "status"] == "failed"
+
+
+@pytest.mark.parametrize("products_input", ["all_rejected", "empty_input"])
+def test_empty_silver_table_blocks_publication_and_records_failure(
+    tmp_path: Path, products_input: str
+) -> None:
+    frames = _valid_bronze_frames()
+    if products_input == "all_rejected":
+        frames["products"].loc[0, "unit_price"] = -1
+    else:
+        frames["products"] = frames["products"].iloc[0:0]
+
+    for table, dataframe in frames.items():
+        path = build_lake_path("bronze", "postgres", table, LOAD_DATE, tmp_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dataframe.to_parquet(path, index=False)
+
+    previous_silver = build_lake_path(
+        "silver", "postgres", "customers", LOAD_DATE, tmp_path
+    )
+    previous_silver.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"previous_run": [42]}).to_parquet(previous_silver, index=False)
+
+    with pytest.raises(ValueError, match="products has no valid rows"):
+        validate_bronze_quality(LOAD_DATE, data_root=tmp_path)
+
+    pd.testing.assert_frame_equal(
+        pd.read_parquet(previous_silver), pd.DataFrame({"previous_run": [42]})
+    )
+    assert not build_lake_path(
+        "silver", "postgres", "products", LOAD_DATE, tmp_path
+    ).exists()
+    rejected = pd.read_parquet(
+        build_lake_path("rejected", "postgres", "products", LOAD_DATE, tmp_path)
+    )
+    assert len(rejected) == (1 if products_input == "all_rejected" else 0)
+
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert len(audit) == 1
+    assert audit.loc[0, "table_name"] == "products"
+    assert audit.loc[0, "status"] == "failed"
+    assert audit.loc[0, "rejected_rows"] == len(rejected)

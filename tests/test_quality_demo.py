@@ -183,7 +183,7 @@ def test_demo_produces_rejected_records_without_changing_normal_flow(
         SOURCE_LOAD_DATE, DEFAULT_DEMO_LOAD_DATE, data_root=tmp_path
     )
     demo_results = validate_bronze_quality(
-        DEFAULT_DEMO_LOAD_DATE, data_root=tmp_path
+        DEFAULT_DEMO_LOAD_DATE, data_root=tmp_path, allow_empty=True
     )
 
     assert sum(result.rejected_rows for result in demo_results.values()) == 6
