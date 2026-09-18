@@ -201,6 +201,59 @@ def test_quality_pipeline_writes_silver_rejected_and_audit_without_indexes(
     assert "__index_level_0__" not in audit.columns
 
 
+def test_rejected_parents_cause_dependent_rows_to_be_rejected(
+    tmp_path: Path,
+) -> None:
+    frames = _valid_bronze_frames()
+
+    def append_row(table: str, **changes: object) -> None:
+        row = frames[table].iloc[[0]].copy()
+        for column, value in changes.items():
+            row.at[row.index[0], column] = value
+        frames[table] = pd.concat([frames[table], row], ignore_index=True)
+
+    append_row("products", product_id=20, sku="BAD-20", unit_price=-1)
+    append_row("inventory", product_id=20)
+    append_row("orders", order_id=200, customer_id=2)
+    append_row("order_items", order_item_id=2000, order_id=200, product_id=20)
+    append_row("payments", payment_id=3000, order_id=200)
+
+    for table, dataframe in frames.items():
+        path = build_lake_path("bronze", "postgres", table, LOAD_DATE, tmp_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dataframe.to_parquet(path, index=False)
+
+    results = validate_bronze_quality(
+        LOAD_DATE, data_root=tmp_path, tables=tuple(reversed(tuple(frames)))
+    )
+
+    expected = {
+        "customers": ("customer_id", 1, 2),
+        "products": ("product_id", 10, 20),
+        "inventory": ("product_id", 10, 20),
+        "orders": ("order_id", 100, 200),
+        "order_items": ("order_item_id", 1000, 2000),
+        "payments": ("payment_id", 2000, 3000),
+    }
+    for table, (key, accepted_id, rejected_id) in expected.items():
+        result = results[table]
+        silver = pd.read_parquet(result.silver_path)
+        rejected = pd.read_parquet(result.rejected_path)
+        assert silver[key].tolist() == [accepted_id]
+        assert rejected[key].tolist() == [rejected_id]
+        assert result.rejected_rows == 1
+
+    reasons = {
+        table: pd.read_parquet(results[table].rejected_path).loc[0, "rejection_reason"]
+        for table in ("inventory", "orders", "order_items", "payments")
+    }
+    assert "product_id does not exist in products" in reasons["inventory"]
+    assert "customer_id does not exist in customers" in reasons["orders"]
+    assert "order_id does not exist in orders" in reasons["order_items"]
+    assert "product_id does not exist in products" in reasons["order_items"]
+    assert "order_id does not exist in orders" in reasons["payments"]
+
+
 def test_parse_args_parses_load_date() -> None:
     args = parse_args(["--load-date", "2026-08-21"])
     defaults = parse_args([])

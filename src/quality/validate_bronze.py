@@ -333,16 +333,20 @@ def validate_bronze_quality(
             )
             raise
 
+    validation_order = tuple(
+        table for table in SOURCE_TABLES if table in selected_tables
+    )
+    accepted_frames: dict[str, pd.DataFrame] = {}
     validated_frames: dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
     results: dict[str, QualityResult] = {}
     audit_records: list[dict[str, object]] = []
     try:
-        for table in selected_tables:
+        for table in validation_order:
             source = bronze_frames[table]
             valid, rejected = validate_table(
                 table,
                 source,
-                bronze_frames,
+                accepted_frames,
                 quality_run_id=run_id,
                 quality_checked_at=checked_at,
             )
@@ -354,6 +358,7 @@ def validate_bronze_quality(
                 raise ValueError(
                     f"{table} has no valid rows; silver was not published."
                 )
+            accepted_frames[table] = valid
 
         for table in selected_tables:
             source = bronze_frames[table]

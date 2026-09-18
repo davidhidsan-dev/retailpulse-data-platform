@@ -43,7 +43,7 @@ El proceso comprueba:
 - `order_items.product_id` contra `products.product_id`.
 - `payments.order_id` contra `orders.order_id`.
 
-Las referencias se comparan contra las tablas bronze completas de la misma partición. Una fila padre rechazada por otra regla no provoca rechazo en cascada de las hijas.
+Las referencias se comparan contra las filas padre aceptadas para silver, en orden de dependencias. Si una fila padre se rechaza, las hijas que la referencian también se rechazan.
 
 ## ES — Salidas
 
@@ -127,6 +127,7 @@ make quality-demo SOURCE_LOAD_DATE=YYYY-MM-DD
 ```
 
 La demo copia una partición bronze existente y altera de forma determinista una fila por tabla.
+El rechazo en cascada puede producir más de una fila rechazada por tabla.
 
 Anomalías demo:
 
@@ -203,7 +204,7 @@ The process checks:
 - `order_items.product_id` against `products.product_id`.
 - `payments.order_id` against `orders.order_id`.
 
-References are checked against the full bronze tables for the same partition. A parent row rejected by another rule does not trigger cascading rejection of child rows.
+References are checked against parent rows accepted for silver, in dependency order. When a parent row is rejected, child rows that reference it are rejected too.
 
 ## EN — Outputs
 
@@ -287,6 +288,7 @@ make quality-demo SOURCE_LOAD_DATE=YYYY-MM-DD
 ```
 
 The demo copies an existing bronze partition and deterministically modifies one row per table.
+Cascading rejection can produce more than one rejected row per table.
 
 Demo anomalies:
 
