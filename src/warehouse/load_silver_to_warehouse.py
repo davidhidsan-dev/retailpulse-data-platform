@@ -162,6 +162,26 @@ def load_silver_to_warehouse(
             raise ValueError(
                 f"{table} silver does not match latest quality run {quality_run_id}"
             )
+        bronze_path = build_lake_path(
+            "bronze", SOURCE_SYSTEM, table, resolved_date, data_root
+        )
+        bronze_ingestion = pd.read_parquet(bronze_path, columns=["ingestion_id"])
+        if (
+            bronze_ingestion.empty
+            or bronze_ingestion["ingestion_id"].isna().any()
+            or bronze_ingestion["ingestion_id"].nunique() != 1
+        ):
+            raise ValueError(f"{table} bronze has no single ingestion_id")
+        ingestion_id = bronze_ingestion["ingestion_id"].iloc[0]
+        if (
+            dataframe.empty
+            or "ingestion_id" not in dataframe.columns
+            or dataframe["ingestion_id"].isna().any()
+            or not dataframe["ingestion_id"].eq(ingestion_id).all()
+        ):
+            raise ValueError(
+                f"{table} silver does not match the current bronze ingestion"
+            )
         silver_frames[table] = dataframe
         silver_paths[table] = silver_path
 

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from src.ingest.postgres_to_lake import write_bronze_table
 from src.quality.validate_bronze import validate_bronze_quality
 from src.utils.paths import build_audit_path, build_lake_path
 from src.warehouse.load_silver_to_warehouse import (
@@ -21,6 +22,7 @@ from src.warehouse.load_silver_to_warehouse import (
 
 LOAD_DATE = date(2026, 9, 2)
 QUALITY_RUN_ID = "approved-run"
+INGESTION_ID = "original-ingestion"
 
 
 class FakeConnection:
@@ -61,6 +63,12 @@ def _write_silver(
     path.parent.mkdir(parents=True, exist_ok=True)
     dataframe.to_parquet(path, index=False)
     return path
+
+
+def _write_bronze_ingestion(tmp_path: Path, table: str) -> None:
+    path = build_lake_path("bronze", "postgres", table, LOAD_DATE, tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"ingestion_id": [INGESTION_ID]}).to_parquet(path, index=False)
 
 
 def _write_audit(tmp_path: Path, tables: tuple[str, ...]) -> None:
@@ -117,14 +125,23 @@ def test_load_silver_to_warehouse_loads_frames_in_one_transaction(
 ) -> None:
     frames = {
         "customers": pd.DataFrame(
-            {"customer_id": [1, 2], "quality_run_id": [QUALITY_RUN_ID] * 2}
+            {
+                "customer_id": [1, 2],
+                "ingestion_id": [INGESTION_ID] * 2,
+                "quality_run_id": [QUALITY_RUN_ID] * 2,
+            }
         ),
         "products": pd.DataFrame(
-            {"product_id": [10], "quality_run_id": [QUALITY_RUN_ID]}
+            {
+                "product_id": [10],
+                "ingestion_id": [INGESTION_ID],
+                "quality_run_id": [QUALITY_RUN_ID],
+            }
         ),
     }
     for table, dataframe in frames.items():
         _write_silver(tmp_path, table, dataframe)
+        _write_bronze_ingestion(tmp_path, table)
 
     _write_audit(tmp_path, ("customers", "products"))
     schema_path = tmp_path / "warehouse_schema.sql"
@@ -161,6 +178,50 @@ def test_load_silver_to_warehouse_loads_frames_in_one_transaction(
         "warehouse_source.customers"
     )
     pd.testing.assert_frame_equal(writes[0][1], frames["customers"])
+
+
+def test_load_refuses_silver_after_bronze_is_reingested(tmp_path: Path) -> None:
+    products = pd.DataFrame(
+        {
+            "product_id": [10],
+            "sku": ["SKU-10"],
+            "product_name": ["Product"],
+            "category": ["Electronics"],
+            "unit_price": [50.0],
+            "created_at": [pd.Timestamp("2026-09-02T10:00:00Z")],
+        }
+    )
+    write_bronze_table(
+        products,
+        "products",
+        LOAD_DATE,
+        INGESTION_ID,
+        pd.Timestamp("2026-09-02T10:00:00Z"),
+        tmp_path,
+    )
+    validate_bronze_quality(LOAD_DATE, data_root=tmp_path, tables=("products",))
+    assert load_silver_to_warehouse(
+        LOAD_DATE,
+        engine=FakeEngine(),
+        data_root=tmp_path,
+        tables=("products",),
+        table_writer=lambda _frame, _table, _connection: None,
+    )["products"].row_count == 1
+
+    write_bronze_table(
+        products,
+        "products",
+        LOAD_DATE,
+        "new-ingestion",
+        pd.Timestamp("2026-09-02T11:00:00Z"),
+        tmp_path,
+    )
+    engine = FakeEngine()
+    with pytest.raises(ValueError, match="does not match the current bronze"):
+        load_silver_to_warehouse(
+            LOAD_DATE, engine=engine, data_root=tmp_path, tables=("products",)
+        )
+    assert engine.begin_calls == 0
 
 
 def test_load_refuses_stale_silver_after_failed_quality_rerun(
@@ -214,10 +275,17 @@ def test_load_refuses_stale_silver_after_failed_quality_rerun(
 
 def test_load_refuses_silver_from_another_quality_run(tmp_path: Path) -> None:
     _write_audit(tmp_path, ("customers", "products"))
+    _write_bronze_ingestion(tmp_path, "customers")
     _write_silver(
         tmp_path,
         "customers",
-        pd.DataFrame({"customer_id": [1, 2], "quality_run_id": [QUALITY_RUN_ID] * 2}),
+        pd.DataFrame(
+            {
+                "customer_id": [1, 2],
+                "ingestion_id": [INGESTION_ID] * 2,
+                "quality_run_id": [QUALITY_RUN_ID] * 2,
+            }
+        ),
     )
     _write_silver(
         tmp_path,
