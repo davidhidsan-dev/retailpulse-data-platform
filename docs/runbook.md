@@ -65,8 +65,8 @@ make logs
 ```bash
 make init-db
 make seed-db
-make ingest-lake
-make quality
+make ingest-lake LOAD_DATE=YYYY-MM-DD
+make quality LOAD_DATE=YYYY-MM-DD
 make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test
@@ -75,10 +75,12 @@ make dbt-test
 Ejemplo:
 
 ```bash
+make ingest-lake LOAD_DATE=2026-09-07
+make quality LOAD_DATE=2026-09-07
 make load-warehouse LOAD_DATE=2026-09-07
 ```
 
-`make seed-db` reemplaza el contenido de las seis tablas fuente. `make ingest-lake` y `make quality` usan la fecha UTC actual; utiliza esa fecha para `LOAD_DATE`. Estos dos targets no propagan una variable Make `LOAD_DATE`.
+`make seed-db` reemplaza el contenido de las seis tablas fuente. Usa la misma `LOAD_DATE` en ingesta, calidad y warehouse. Si se omite, los tres targets usan la fecha UTC actual.
 
 La carga warehouse elimina las vistas staging dependientes mediante `CASCADE`; reconstruye con `make dbt-run` y valida con `make dbt-test` después de cada carga.
 
@@ -355,8 +357,8 @@ make logs
 ```bash
 make init-db
 make seed-db
-make ingest-lake
-make quality
+make ingest-lake LOAD_DATE=YYYY-MM-DD
+make quality LOAD_DATE=YYYY-MM-DD
 make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test
@@ -365,10 +367,12 @@ make dbt-test
 Example:
 
 ```bash
+make ingest-lake LOAD_DATE=2026-09-07
+make quality LOAD_DATE=2026-09-07
 make load-warehouse LOAD_DATE=2026-09-07
 ```
 
-`make seed-db` replaces the contents of the six source tables. `make ingest-lake` and `make quality` use the current UTC date; use that date for `LOAD_DATE`. These two targets do not forward a Make `LOAD_DATE` variable.
+`make seed-db` replaces the contents of the six source tables. Use the same `LOAD_DATE` for ingestion, quality and warehouse. If omitted, all three targets use the current UTC date.
 
 The warehouse load drops dependent staging views through `CASCADE`; rebuild with `make dbt-run` and validate with `make dbt-test` after every load.
 

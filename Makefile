@@ -1,4 +1,5 @@
 DEMO_LOAD_DATE ?= 2099-01-01
+LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 AIRFLOW_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.airflow.yml
 
 .PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps
@@ -25,17 +26,17 @@ seed-db:
 	python -m src.synthetic_data.generate_retail_data
 
 ingest-lake:
-	python -m src.ingest.postgres_to_lake
+	python -m src.ingest.postgres_to_lake $(LOAD_DATE_ARG)
 
 quality:
-	python -m src.quality.validate_bronze
+	python -m src.quality.validate_bronze $(LOAD_DATE_ARG)
 
 quality-demo:
 	python -m src.quality.create_bad_bronze_demo --source-load-date $(SOURCE_LOAD_DATE) --demo-load-date $(DEMO_LOAD_DATE)
 	python -m src.quality.validate_bronze --load-date $(DEMO_LOAD_DATE) --allow-empty
 
 load-warehouse:
-	python -m src.warehouse.load_silver_to_warehouse $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
+	python -m src.warehouse.load_silver_to_warehouse $(LOAD_DATE_ARG)
 
 dbt-run:
 	cd dbt && dbt run --profiles-dir .

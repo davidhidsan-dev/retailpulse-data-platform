@@ -26,8 +26,8 @@ Ejecutar:
 make up
 make init-db
 make seed-db
-make ingest-lake
-make quality
+make ingest-lake LOAD_DATE=YYYY-MM-DD
+make quality LOAD_DATE=YYYY-MM-DD
 make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test
@@ -168,8 +168,8 @@ Run:
 make up
 make init-db
 make seed-db
-make ingest-lake
-make quality
+make ingest-lake LOAD_DATE=YYYY-MM-DD
+make quality LOAD_DATE=YYYY-MM-DD
 make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test

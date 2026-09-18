@@ -103,14 +103,14 @@ Levantar PostgreSQL y ejecutar el flujo manual:
 make up
 make init-db
 make seed-db
-make ingest-lake
-make quality
+make ingest-lake LOAD_DATE=YYYY-MM-DD
+make quality LOAD_DATE=YYYY-MM-DD
 make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test
 ```
 
-Si `make ingest-lake` y `make quality` se ejecutan sin fecha explícita, usan la fecha UTC actual. Para evitar dudas, los módulos Python también aceptan `--load-date`.
+Los tres targets aceptan `LOAD_DATE`; si se omite, usan la fecha UTC actual. Los módulos Python también aceptan `--load-date`.
 
 ## Ejecución con Airflow
 
