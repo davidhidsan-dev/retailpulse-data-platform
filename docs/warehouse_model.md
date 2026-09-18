@@ -89,6 +89,9 @@ Los tests validan:
 - campos no nulos.
 - dominios permitidos.
 - relaciones entre hechos y dimensiones.
+- al menos una fila en cada mart.
+
+El test genérico `not_empty` detecta tablas vacías que los tests de filas no pueden detectar.
 
 Estos tests protegen el contrato analítico. La separación de rejected records pertenece a la fase de calidad en Python.
 
@@ -192,6 +195,9 @@ Tests validate:
 - non-null fields.
 - accepted domains.
 - relationships between facts and dimensions.
+- at least one row in every mart.
+
+The generic `not_empty` test catches empty tables that row-level tests cannot detect.
 
 These tests protect the analytical contract. Rejected-record separation belongs to the Python quality layer.
 

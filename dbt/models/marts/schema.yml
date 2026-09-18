@@ -3,6 +3,8 @@ version: 2
 models:
   - name: dim_customer
     description: One row per customer from the validated source.
+    data_tests:
+      - not_empty
     columns:
       - name: customer_id
         data_tests:
@@ -11,6 +13,8 @@ models:
 
   - name: dim_product
     description: One row per product and commercial SKU.
+    data_tests:
+      - not_empty
     columns:
       - name: product_id
         data_tests:
@@ -23,6 +27,8 @@ models:
 
   - name: dim_date
     description: One row per calendar day covered by the orders dataset.
+    data_tests:
+      - not_empty
     columns:
       - name: date_day
         data_tests:
@@ -31,6 +37,8 @@ models:
 
   - name: fact_sales
     description: One row per order item enriched with order and payment attributes.
+    data_tests:
+      - not_empty
     columns:
       - name: order_item_id
         data_tests:
@@ -71,6 +79,8 @@ models:
 
   - name: fact_inventory
     description: One row per product with its current inventory position.
+    data_tests:
+      - not_empty
     columns:
       - name: product_id
         data_tests:
