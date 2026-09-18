@@ -320,3 +320,61 @@ def test_empty_silver_table_blocks_publication_and_records_failure(
     assert audit.loc[0, "table_name"] == "products"
     assert audit.loc[0, "status"] == "failed"
     assert audit.loc[0, "rejected_rows"] == len(rejected)
+
+
+def test_mixed_bronze_ingestions_block_silver_publication(tmp_path: Path) -> None:
+    frames = _valid_bronze_frames()
+    frames["customers"]["ingestion_id"] = "new-ingestion"
+    frames["products"]["ingestion_id"] = "new-ingestion"
+    for table, dataframe in frames.items():
+        path = build_lake_path("bronze", "postgres", table, LOAD_DATE, tmp_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dataframe.to_parquet(path, index=False)
+
+    previous_silver = build_lake_path(
+        "silver", "postgres", "customers", LOAD_DATE, tmp_path
+    )
+    previous_silver.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"previous_run": [42]}).to_parquet(previous_silver, index=False)
+
+    with pytest.raises(ValueError, match="mixed ingestion_id"):
+        validate_bronze_quality(LOAD_DATE, data_root=tmp_path)
+
+    pd.testing.assert_frame_equal(
+        pd.read_parquet(previous_silver), pd.DataFrame({"previous_run": [42]})
+    )
+    assert not build_lake_path(
+        "silver", "postgres", "inventory", LOAD_DATE, tmp_path
+    ).exists()
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert len(audit) == 1
+    assert audit.loc[0, "table_name"] == "inventory"
+    assert audit.loc[0, "status"] == "failed"
+
+
+@pytest.mark.parametrize("invalid_metadata", ["missing", "mixed", "null"])
+def test_bronze_requires_one_ingestion_id(
+    tmp_path: Path, invalid_metadata: str
+) -> None:
+    customers = _valid_bronze_frames()["customers"]
+    if invalid_metadata == "missing":
+        customers = customers.drop(columns="ingestion_id")
+    elif invalid_metadata == "mixed":
+        customers.loc[1, "ingestion_id"] = "another-ingestion"
+    else:
+        customers.loc[1, "ingestion_id"] = None
+    path = build_lake_path("bronze", "postgres", "customers", LOAD_DATE, tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    customers.to_parquet(path, index=False)
+
+    with pytest.raises(ValueError, match="bronze must have one ingestion_id"):
+        validate_bronze_quality(
+            LOAD_DATE, data_root=tmp_path, tables=("customers",)
+        )
+
+    assert not build_lake_path(
+        "silver", "postgres", "customers", LOAD_DATE, tmp_path
+    ).exists()
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert audit.loc[0, "table_name"] == "customers"
+    assert audit.loc[0, "status"] == "failed"

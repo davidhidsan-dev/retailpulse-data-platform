@@ -234,6 +234,7 @@ def test_load_refuses_stale_silver_after_failed_quality_rerun(
             "country": ["Spain"],
             "created_at": [pd.Timestamp("2026-09-02T10:00:00Z")],
             "synthetic_behavior_segment": ["new"],
+            "ingestion_id": [INGESTION_ID],
         }
     )
     products = pd.DataFrame(
@@ -244,6 +245,7 @@ def test_load_refuses_stale_silver_after_failed_quality_rerun(
             "category": ["Electronics"],
             "unit_price": [50.0],
             "created_at": [pd.Timestamp("2026-09-02T10:00:00Z")],
+            "ingestion_id": [INGESTION_ID],
         }
     )
     for table, frame in {"customers": customers, "products": products}.items():

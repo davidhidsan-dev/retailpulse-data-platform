@@ -100,6 +100,8 @@ Estados:
 
 ## ES — Publicación de silver
 
+Antes de validar filas, cada tabla bronze no vacía debe tener un solo `ingestion_id` no nulo, compartido por todas las tablas de la partición. Así, una ingesta interrumpida que mezcle snapshots de dos intentos bloquea la publicación de silver y queda registrada como `failed` en audit.
+
 La validación se detiene si alguna tabla no produce filas válidas, incluso si bronze
 estaba vacía. Comprueba todas las tablas antes de publicar archivos silver y
 registra `failed` en audit para la tabla que bloqueó la ejecución. Conserva sus
@@ -260,6 +262,8 @@ Statuses:
 - `failed`: validation error or a table with no valid rows.
 
 ## EN — Silver publication
+
+Before validating rows, each non-empty bronze table must have one non-null `ingestion_id`, shared by all tables in the partition. This stops a partial ingestion from mixing snapshots from different attempts and records `failed` in audit before silver is published.
 
 Validation stops when any table has no valid rows, including an empty bronze
 input. It checks every table before publishing silver files and records `failed`

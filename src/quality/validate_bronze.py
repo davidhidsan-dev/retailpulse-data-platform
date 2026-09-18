@@ -341,6 +341,27 @@ def validate_bronze_quality(
     results: dict[str, QualityResult] = {}
     audit_records: list[dict[str, object]] = []
     try:
+        ingestion_id: str | None = None
+        for table in selected_tables:
+            source = bronze_frames[table]
+            if source.empty:
+                continue
+            if (
+                "ingestion_id" not in source.columns
+                or source["ingestion_id"].isna().any()
+                or source["ingestion_id"].nunique() != 1
+            ):
+                raise ValueError(f"{table} bronze must have one ingestion_id")
+            table_ingestion_id = source["ingestion_id"].iloc[0]
+            if not isinstance(table_ingestion_id, str) or not table_ingestion_id:
+                raise ValueError(f"{table} bronze must have one ingestion_id")
+            if ingestion_id is None:
+                ingestion_id = table_ingestion_id
+            elif table_ingestion_id != ingestion_id:
+                raise ValueError(
+                    f"Bronze tables contain mixed ingestion_id values; {table} differs"
+                )
+
         for table in validation_order:
             source = bronze_frames[table]
             valid, rejected = validate_table(
