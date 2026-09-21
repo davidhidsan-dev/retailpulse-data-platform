@@ -93,6 +93,8 @@ Los tests validan:
 
 El test genérico `not_empty` detecta tablas vacías que los tests de filas no pueden detectar.
 
+`reconcile_fact_sales` compara cada `order_item_id` de `stg_order_items` con `fact_sales`. Falla si una línea aceptada desaparece, aparece una línea inesperada o cambia `line_total`. Cada fallo muestra el identificador y los importes de ambas capas, además de sus recuentos y sumas totales. El test de unicidad de `fact_sales` detecta líneas duplicadas. Para inspeccionar los fallos, ejecuta `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` desde `dbt/`.
+
 Estos tests protegen el contrato analítico. La separación de rejected records pertenece a la fase de calidad en Python.
 
 ## ES — Limitaciones
@@ -198,6 +200,8 @@ Tests validate:
 - at least one row in every mart.
 
 The generic `not_empty` test catches empty tables that row-level tests cannot detect.
+
+`reconcile_fact_sales` compares every `order_item_id` in `stg_order_items` with `fact_sales`. It fails when an accepted item is missing, an unexpected item appears, or `line_total` changes. Each failure shows the item ID and amounts from both layers, plus their total row counts and amounts. The `fact_sales` uniqueness test catches duplicate items. Run `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` from `dbt/` to inspect the failures.
 
 These tests protect the analytical contract. Rejected-record separation belongs to the Python quality layer.
 
