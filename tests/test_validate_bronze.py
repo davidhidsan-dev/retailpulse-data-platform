@@ -36,8 +36,11 @@ def _valid_bronze_frames() -> dict[str, pd.DataFrame]:
             pd.DataFrame(
                 {
                     "customer_id": [1, 2],
+                    "first_name": ["Ana", "Louis"],
+                    "last_name": ["Garcia", "Martin"],
                     "email": ["valid@example.com", "invalid-email"],
                     "country": ["Spain", "France"],
+                    "city": ["Madrid", "Paris"],
                     "created_at": [INGESTED_AT, INGESTED_AT],
                     "synthetic_behavior_segment": ["frequent", "new"],
                 }
@@ -144,6 +147,58 @@ def test_validate_table_accumulates_multiple_rejection_reasons() -> None:
     assert "sku is null" in reason
     assert "unit_price must be > 0" in reason
     assert "; " in reason
+
+
+@pytest.mark.parametrize("column", ["first_name", "last_name", "city"])
+def test_customer_contract_requires_descriptive_columns(column: str) -> None:
+    customers = _valid_bronze_frames()["customers"].drop(columns=column)
+
+    with pytest.raises(ValueError, match=rf"customers is missing columns: {column}"):
+        validate_table("customers", customers)
+
+
+def test_customer_contract_rejects_blank_country_and_duplicate_email() -> None:
+    customers = _valid_bronze_frames()["customers"]
+    customers.loc[0, "country"] = "   "
+    customers.loc[1, "email"] = customers.loc[0, "email"]
+
+    _, rejected = validate_table("customers", customers)
+
+    reasons = rejected.set_index("customer_id")["rejection_reason"]
+    assert "country is blank" in reasons.loc[1]
+    assert "email is duplicated" in reasons.loc[1]
+    assert "email is duplicated" in reasons.loc[2]
+
+
+def test_product_contract_rejects_invalid_date_and_infinite_price() -> None:
+    products = _valid_bronze_frames()["products"]
+    products["created_at"] = products["created_at"].astype("object")
+    products.loc[0, "created_at"] = "not-a-date"
+    products.loc[0, "unit_price"] = float("inf")
+
+    _, rejected = validate_table("products", products)
+
+    reason = rejected.loc[0, "rejection_reason"]
+    assert "created_at is not a valid datetime" in reason
+    assert "unit_price must be > 0" in reason
+
+
+def test_order_item_contract_rejects_fractional_quantity() -> None:
+    frames = _valid_bronze_frames()
+    items = frames["order_items"]
+    items["quantity"] = items["quantity"].astype(float)
+    items.loc[0, "quantity"] = 1.5
+    items.loc[0, "line_total"] = 75.0
+
+    _, rejected = validate_table(
+        "order_items",
+        items,
+        {"orders": frames["orders"], "products": frames["products"]},
+    )
+
+    reason = rejected.loc[0, "rejection_reason"]
+    assert "quantity must be an integer" in reason
+    assert "line_total does not match" not in reason
 
 
 def test_quality_pipeline_writes_silver_rejected_and_audit_without_indexes(

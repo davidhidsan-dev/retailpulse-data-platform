@@ -14,7 +14,10 @@ from uuid import uuid4
 import pandas as pd
 
 from src.quality.rules import (
+    blank_values,
     duplicate_values,
+    fractional_values,
+    invalid_datetimes,
     invalid_emails,
     invalid_foreign_keys,
     invalid_line_totals,
@@ -45,8 +48,11 @@ PAYMENT_STATUSES = {"paid", "failed", "refunded", "pending"}
 REQUIRED_COLUMNS = {
     "customers": {
         "customer_id",
+        "first_name",
+        "last_name",
         "email",
         "country",
+        "city",
         "created_at",
         "synthetic_behavior_segment",
     },
@@ -155,10 +161,20 @@ def validate_table(
     if table == "customers":
         reject(null_values(working, "customer_id"), "customer_id is null")
         reject(duplicate_values(working, "customer_id"), "customer_id is duplicated")
+        for column in ("first_name", "last_name", "city"):
+            reject(null_values(working, column), f"{column} is null")
+            reject(blank_values(working, column), f"{column} is blank")
         reject(null_values(working, "email"), "email is null")
+        reject(blank_values(working, "email"), "email is blank")
         reject(invalid_emails(working), "email has invalid format")
+        reject(duplicate_values(working, "email"), "email is duplicated")
         reject(null_values(working, "country"), "country is null")
+        reject(blank_values(working, "country"), "country is blank")
         reject(null_values(working, "created_at"), "created_at is null")
+        reject(
+            invalid_datetimes(working, "created_at"),
+            "created_at is not a valid datetime",
+        )
         reject(
             values_not_in(working, "synthetic_behavior_segment", CUSTOMER_SEGMENTS),
             "synthetic_behavior_segment is not allowed",
@@ -167,17 +183,28 @@ def validate_table(
         reject(null_values(working, "product_id"), "product_id is null")
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(null_values(working, "sku"), "sku is null")
+        reject(blank_values(working, "sku"), "sku is blank")
         reject(duplicate_values(working, "sku"), "sku is duplicated")
         reject(null_values(working, "product_name"), "product_name is null")
+        reject(blank_values(working, "product_name"), "product_name is blank")
         reject(null_values(working, "category"), "category is null")
+        reject(blank_values(working, "category"), "category is blank")
         reject(non_positive_values(working, "unit_price"), "unit_price must be > 0")
         reject(null_values(working, "created_at"), "created_at is null")
+        reject(
+            invalid_datetimes(working, "created_at"),
+            "created_at is not a valid datetime",
+        )
     elif table == "inventory":
         reject(null_values(working, "product_id"), "product_id is null")
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(negative_values(working, "stock_quantity"), "stock_quantity must be >= 0")
         reject(negative_values(working, "reorder_level"), "reorder_level must be >= 0")
         reject(null_values(working, "updated_at"), "updated_at is null")
+        reject(
+            invalid_datetimes(working, "updated_at"),
+            "updated_at is not a valid datetime",
+        )
         products = _require_reference(references, "products", "product_id")
         reject(
             invalid_foreign_keys(working, "product_id", products, "product_id"),
@@ -189,10 +216,15 @@ def validate_table(
         reject(null_values(working, "customer_id"), "customer_id is null")
         reject(null_values(working, "order_date"), "order_date is null")
         reject(
+            invalid_datetimes(working, "order_date"),
+            "order_date is not a valid datetime",
+        )
+        reject(
             values_not_in(working, "order_status", ORDER_STATUSES),
             "order_status is not allowed",
         )
         reject(null_values(working, "country"), "country is null")
+        reject(blank_values(working, "country"), "country is blank")
         customers = _require_reference(references, "customers", "customer_id")
         reject(
             invalid_foreign_keys(working, "customer_id", customers, "customer_id"),
@@ -207,6 +239,7 @@ def validate_table(
         reject(null_values(working, "order_id"), "order_id is null")
         reject(null_values(working, "product_id"), "product_id is null")
         reject(non_positive_values(working, "quantity"), "quantity must be > 0")
+        reject(fractional_values(working, "quantity"), "quantity must be an integer")
         reject(non_positive_values(working, "unit_price"), "unit_price must be > 0")
         reject(invalid_line_totals(working), "line_total does not match quantity * unit_price")
         orders = _require_reference(references, "orders", "order_id")
@@ -237,6 +270,10 @@ def validate_table(
             "payment_amount must be >= 0",
         )
         reject(null_values(working, "payment_date"), "payment_date is null")
+        reject(
+            invalid_datetimes(working, "payment_date"),
+            "payment_date is not a valid datetime",
+        )
         orders = _require_reference(references, "orders", "order_id")
         reject(
             invalid_foreign_keys(working, "order_id", orders, "order_id"),

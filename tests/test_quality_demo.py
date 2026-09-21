@@ -36,8 +36,11 @@ def _valid_bronze_frames() -> dict[str, pd.DataFrame]:
             pd.DataFrame(
                 {
                     "customer_id": [1],
+                    "first_name": ["Ana"],
+                    "last_name": ["Garcia"],
                     "email": ["valid@example.com"],
                     "country": ["Spain"],
+                    "city": ["Madrid"],
                     "created_at": [INGESTED_AT],
                     "synthetic_behavior_segment": ["frequent"],
                 }

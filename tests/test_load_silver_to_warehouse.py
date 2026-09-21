@@ -230,8 +230,11 @@ def test_load_refuses_stale_silver_after_failed_quality_rerun(
     customers = pd.DataFrame(
         {
             "customer_id": [1],
+            "first_name": ["Ana"],
+            "last_name": ["Garcia"],
             "email": ["valid@example.com"],
             "country": ["Spain"],
+            "city": ["Madrid"],
             "created_at": [pd.Timestamp("2026-09-02T10:00:00Z")],
             "synthetic_behavior_segment": ["new"],
             "ingestion_id": [INGESTION_ID],

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+import numpy as np
 import pandas as pd
 
 
@@ -14,6 +15,12 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 def null_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
     """Return a mask for null values in a required column."""
     return dataframe[column].isna()
+
+
+def blank_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
+    """Return a mask for non-null strings containing no visible characters."""
+    values = dataframe[column].astype("string")
+    return values.notna() & values.str.strip().eq("")
 
 
 def duplicate_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
@@ -28,6 +35,19 @@ def invalid_emails(dataframe: pd.DataFrame, column: str = "email") -> pd.Series:
     return values.notna() & ~values.str.fullmatch(EMAIL_PATTERN, na=False)
 
 
+def invalid_datetimes(dataframe: pd.DataFrame, column: str) -> pd.Series:
+    """Return a mask for non-null values that cannot represent a timestamp."""
+    values = dataframe[column]
+    parsed = pd.to_datetime(values, errors="coerce", utc=True)
+    return values.notna() & parsed.isna()
+
+
+def fractional_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
+    """Return a mask for finite numeric values that are not whole numbers."""
+    values = pd.to_numeric(dataframe[column], errors="coerce")
+    return values.notna() & np.isfinite(values) & values.mod(1).ne(0)
+
+
 def values_not_in(
     dataframe: pd.DataFrame,
     column: str,
@@ -39,15 +59,15 @@ def values_not_in(
 
 
 def non_positive_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
-    """Return a mask for null, non-numeric or numeric values not above zero."""
+    """Return a mask for null, non-finite or numeric values not above zero."""
     values = pd.to_numeric(dataframe[column], errors="coerce")
-    return values.isna() | values.le(0)
+    return values.isna() | ~np.isfinite(values) | values.le(0)
 
 
 def negative_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
-    """Return a mask for null, non-numeric or negative numeric values."""
+    """Return a mask for null, non-finite or negative numeric values."""
     values = pd.to_numeric(dataframe[column], errors="coerce")
-    return values.isna() | values.lt(0)
+    return values.isna() | ~np.isfinite(values) | values.lt(0)
 
 
 def invalid_foreign_keys(
@@ -70,7 +90,11 @@ def invalid_line_totals(dataframe: pd.DataFrame) -> pd.Series:
     expected = quantity * unit_price
     half_cent_tolerance = 0.005 + 1e-9
     return (
-        line_total.isna()
-        | expected.isna()
+        quantity.isna()
+        | unit_price.isna()
+        | line_total.isna()
+        | ~np.isfinite(quantity)
+        | ~np.isfinite(unit_price)
+        | ~np.isfinite(line_total)
         | line_total.sub(expected).abs().gt(half_cent_tolerance)
     )
