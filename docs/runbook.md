@@ -82,7 +82,7 @@ make load-warehouse LOAD_DATE=2026-09-07
 
 `make seed-db` reemplaza el contenido de las seis tablas fuente. Usa la misma `LOAD_DATE` en ingesta, calidad y warehouse. Si se omite, los tres targets usan la fecha UTC actual.
 
-La carga warehouse elimina las vistas staging dependientes mediante `CASCADE`; reconstruye con `make dbt-run` y valida con `make dbt-test` después de cada carga.
+La carga warehouse conserva las tablas de `warehouse_source` y las vistas staging mientras reemplaza las filas en una transacción; después ejecuta `make dbt-run` y `make dbt-test` para actualizar y validar los marts.
 
 ## ES — Ejecución con fechas explícitas
 
@@ -374,7 +374,7 @@ make load-warehouse LOAD_DATE=2026-09-07
 
 `make seed-db` replaces the contents of the six source tables. Use the same `LOAD_DATE` for ingestion, quality and warehouse. If omitted, all three targets use the current UTC date.
 
-The warehouse load drops dependent staging views through `CASCADE`; rebuild with `make dbt-run` and validate with `make dbt-test` after every load.
+The warehouse load preserves the `warehouse_source` tables and staging views while replacing rows in one transaction; then run `make dbt-run` and `make dbt-test` to refresh and validate the marts.
 
 ## EN — Explicit-date execution
 

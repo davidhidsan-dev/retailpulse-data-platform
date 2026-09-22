@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
 from sqlalchemy import Engine
@@ -61,7 +62,7 @@ def write_warehouse_table(
     table: str,
     connection: Any,
 ) -> None:
-    """Replace one warehouse source table without writing the pandas index."""
+    """Write one isolated loading table without the pandas index."""
     dataframe.to_sql(
         table,
         con=connection,
@@ -71,6 +72,41 @@ def write_warehouse_table(
         method="multi",
         chunksize=1_000,
     )
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Quote one PostgreSQL identifier."""
+    escaped_identifier = identifier.replace('"', '""')
+    return f'"{escaped_identifier}"'
+
+
+def refresh_warehouse_table(
+    dataframe: pd.DataFrame,
+    table: str,
+    connection: Any,
+    table_writer: TableWriter = write_warehouse_table,
+) -> None:
+    """Transactionally refresh a stable table through an isolated loading table."""
+    loading_table = f"_load_{table}_{uuid4().hex}"
+    table_writer(dataframe, loading_table, connection)
+
+    target = (
+        f'{_quote_identifier(WAREHOUSE_SCHEMA)}.{_quote_identifier(table)}'
+    )
+    loading = (
+        f'{_quote_identifier(WAREHOUSE_SCHEMA)}.'
+        f'{_quote_identifier(loading_table)}'
+    )
+    columns = ", ".join(_quote_identifier(column) for column in dataframe.columns)
+
+    connection.exec_driver_sql(
+        f"CREATE TABLE IF NOT EXISTS {target} (LIKE {loading} INCLUDING ALL)"
+    )
+    connection.exec_driver_sql(f"TRUNCATE TABLE {target}")
+    connection.exec_driver_sql(
+        f"INSERT INTO {target} ({columns}) SELECT {columns} FROM {loading}"
+    )
+    connection.exec_driver_sql(f"DROP TABLE {loading}")
 
 
 def require_approved_quality_run(
@@ -194,10 +230,7 @@ def load_silver_to_warehouse(
         connection.exec_driver_sql(schema_sql)
         for table in selected_tables:
             dataframe = silver_frames[table]
-            connection.exec_driver_sql(
-                f'DROP TABLE IF EXISTS "{WAREHOUSE_SCHEMA}"."{table}" CASCADE'
-            )
-            writer(dataframe, table, connection)
+            refresh_warehouse_table(dataframe, table, connection, writer)
             result = WarehouseLoadResult(
                 table=table,
                 row_count=len(dataframe),

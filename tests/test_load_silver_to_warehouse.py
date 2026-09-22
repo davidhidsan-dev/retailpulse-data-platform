@@ -101,7 +101,7 @@ def test_read_silver_table_reads_expected_partition(tmp_path: Path) -> None:
     pd.testing.assert_frame_equal(dataframe, source)
 
 
-def test_write_warehouse_table_uses_replace_schema_and_no_index() -> None:
+def test_write_warehouse_table_replaces_isolated_loading_table() -> None:
     dataframe = pd.DataFrame({"product_id": [1]})
     to_sql = Mock()
     dataframe.to_sql = to_sql  # type: ignore[method-assign]
@@ -165,12 +165,43 @@ def test_load_silver_to_warehouse_loads_frames_in_one_transaction(
         table_writer=record_write,
     )
 
+    loading_tables = [table for table, _, _ in writes]
+    assert loading_tables[0].startswith("_load_customers_")
+    assert loading_tables[1].startswith("_load_products_")
+    customers_loading = (
+        f'"{WAREHOUSE_SCHEMA}"."{loading_tables[0]}"'
+    )
+    products_loading = (
+        f'"{WAREHOUSE_SCHEMA}"."{loading_tables[1]}"'
+    )
     assert engine.connection.executed_sql == [
         "CREATE SCHEMA IF NOT EXISTS warehouse_source;",
-        'DROP TABLE IF EXISTS "warehouse_source"."customers" CASCADE',
-        'DROP TABLE IF EXISTS "warehouse_source"."products" CASCADE',
+        (
+            'CREATE TABLE IF NOT EXISTS "warehouse_source"."customers" '
+            f"(LIKE {customers_loading} INCLUDING ALL)"
+        ),
+        'TRUNCATE TABLE "warehouse_source"."customers"',
+        (
+            'INSERT INTO "warehouse_source"."customers" '
+            '("customer_id", "ingestion_id", "quality_run_id") '
+            f'SELECT "customer_id", "ingestion_id", "quality_run_id" '
+            f"FROM {customers_loading}"
+        ),
+        f"DROP TABLE {customers_loading}",
+        (
+            'CREATE TABLE IF NOT EXISTS "warehouse_source"."products" '
+            f"(LIKE {products_loading} INCLUDING ALL)"
+        ),
+        'TRUNCATE TABLE "warehouse_source"."products"',
+        (
+            'INSERT INTO "warehouse_source"."products" '
+            '("product_id", "ingestion_id", "quality_run_id") '
+            f'SELECT "product_id", "ingestion_id", "quality_run_id" '
+            f"FROM {products_loading}"
+        ),
+        f"DROP TABLE {products_loading}",
     ]
-    assert [table for table, _, _ in writes] == ["customers", "products"]
+    assert all("CASCADE" not in sql for sql in engine.connection.executed_sql)
     assert all(connection is engine.connection for _, _, connection in writes)
     assert results["customers"].row_count == 2
     assert results["products"].row_count == 1

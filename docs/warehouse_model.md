@@ -23,7 +23,7 @@ Antes de iniciar la transacción, la carga comprueba que la última ejecución d
 
 La carga compara también el `ingestion_id` de silver con el de la partición bronze actual. Si bronze se ha vuelto a ingerir para la misma fecha, hay que repetir la validación antes de cargar. Un silver vacío no permite comprobar esta procedencia y tampoco se carga al warehouse.
 
-El reemplazo elimina las vistas staging dependientes mediante `CASCADE`. Los marts existentes pueden seguir mostrando la carga anterior hasta ejecutar `make dbt-run`; después de cada carga ejecuta también `make dbt-test`.
+La recarga conserva las tablas de `warehouse_source`: escribe primero en tablas de carga aisladas y después reemplaza sus filas dentro de una única transacción. Así las vistas staging siguen existiendo durante la recarga. Los marts existentes pueden seguir mostrando la carga anterior hasta ejecutar `make dbt-run`; después de cada carga ejecuta también `make dbt-test`.
 
 ## ES — Staging
 
@@ -131,7 +131,7 @@ Before starting the transaction, the loader checks that the latest quality run f
 
 The loader also compares the `ingestion_id` in silver with the current bronze partition. If bronze has been ingested again for the same date, quality validation must be rerun before loading. An empty silver file cannot prove this lineage and is not loaded into the warehouse.
 
-Replacement drops dependent staging views through `CASCADE`. Existing marts may still show the previous load until `make dbt-run` runs; follow every load with `make dbt-test` as well.
+The refresh preserves the `warehouse_source` tables: it writes isolated loading tables first and then replaces their rows in one transaction. Staging views therefore remain available throughout the refresh. Existing marts may still show the previous load until `make dbt-run` runs; follow every load with `make dbt-test` as well.
 
 ## EN — Staging
 
