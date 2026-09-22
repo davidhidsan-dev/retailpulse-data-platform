@@ -209,7 +209,15 @@ def validate_table(
         reject(null_values(working, "product_id"), "product_id is null")
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(negative_values(working, "stock_quantity"), "stock_quantity must be >= 0")
+        reject(
+            fractional_values(working, "stock_quantity"),
+            "stock_quantity must be an integer",
+        )
         reject(negative_values(working, "reorder_level"), "reorder_level must be >= 0")
+        reject(
+            fractional_values(working, "reorder_level"),
+            "reorder_level must be an integer",
+        )
         reject(null_values(working, "updated_at"), "updated_at is null")
         reject(
             invalid_datetimes(working, "updated_at"),

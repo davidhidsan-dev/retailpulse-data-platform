@@ -28,7 +28,7 @@ Silver y rejected no modifican los archivos bronze originales.
 |---|---|
 | `customers` | `customer_id` presente y único; nombre, apellido y ciudad presentes; email presente, válido y único; país no vacío; fecha válida; segmento sintético permitido. |
 | `products` | `product_id` y `sku` presentes y únicos; SKU, nombre y categoría no vacíos; fecha válida; precio positivo y finito. |
-| `inventory` | `product_id` presente y único; stock y reorder level no negativos y finitos; fecha de actualización válida. |
+| `inventory` | `product_id` presente y único; stock y reorder level enteros, no negativos y finitos; fecha de actualización válida. |
 | `orders` | `order_id` presente y único; cliente presente; fecha válida; país no vacío; estado permitido. |
 | `order_items` | `order_item_id` presente y único; pedido y producto presentes; cantidad entera positiva; precio positivo y finito; total de línea consistente y finito. |
 | `payments` | `payment_id` presente y único; un pago por pedido; método y estado permitidos; importe no negativo y finito; fecha válida. |
@@ -197,7 +197,7 @@ Silver and rejected do not modify the original bronze files.
 |---|---|
 | `customers` | `customer_id` present and unique; first name, last name and city present; email present, valid and unique; non-blank country; valid date; allowed synthetic segment. |
 | `products` | `product_id` and `sku` present and unique; non-blank SKU, name and category; valid date; positive finite price. |
-| `inventory` | `product_id` present and unique; finite non-negative stock and reorder level; valid update date. |
+| `inventory` | `product_id` present and unique; finite, non-negative integer stock and reorder level; valid update date. |
 | `orders` | `order_id` present and unique; customer present; valid date; non-blank country; accepted status. |
 | `order_items` | `order_item_id` present and unique; order and product present; positive integer quantity; positive finite price; consistent finite line total. |
 | `payments` | `payment_id` present and unique; one payment per order; accepted method and status; finite non-negative amount; valid date. |

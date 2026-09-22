@@ -184,6 +184,22 @@ def test_product_contract_rejects_invalid_date_and_infinite_price() -> None:
     assert "unit_price must be > 0" in reason
 
 
+@pytest.mark.parametrize("column", ["stock_quantity", "reorder_level"])
+def test_inventory_contract_rejects_fractional_quantities(column: str) -> None:
+    frames = _valid_bronze_frames()
+    inventory = frames["inventory"]
+    inventory[column] = inventory[column].astype(float)
+    inventory.loc[0, column] = 1.5
+
+    _, rejected = validate_table(
+        "inventory",
+        inventory,
+        {"products": frames["products"]},
+    )
+
+    assert f"{column} must be an integer" in rejected.loc[0, "rejection_reason"]
+
+
 def test_order_item_contract_rejects_fractional_quantity() -> None:
     frames = _valid_bronze_frames()
     items = frames["order_items"]
