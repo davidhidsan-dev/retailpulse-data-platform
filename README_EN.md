@@ -40,15 +40,13 @@ v1.0 covers the full pipeline up to the dbt marts and includes local orchestrati
 PostgreSQL source
     ↓
 Python ingestion
-    ↓
-raw CSV
-    ↓
-bronze Parquet + ingestion metadata
-    ↓
-Python quality validation
-    ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
-    ├── rejected Parquet
-    └── audit quality_runs.parquet
+    ├── raw CSV
+    └── bronze Parquet + ingestion metadata
+            ↓
+        Python quality validation
+            ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
+            ├── rejected Parquet
+            └── audit quality_runs.parquet
 
 Airflow orchestrates the end-to-end batch flow above.
 ```

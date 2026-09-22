@@ -273,7 +273,7 @@ make airflow-logs
 
 ### dbt test falla por relationships
 
-Primero identifica el test fallido y consulta su SQL compilado bajo `dbt/target/compiled/`. Las FK de calidad se validan contra bronze: un padre rechazado por otra regla no rechaza sus hijos en cascada. Revisa rejected y los conteos de los marts antes de volver a cargar una partición silver normal y coherente:
+Primero identifica el test fallido y consulta su SQL compilado bajo `dbt/target/compiled/`. Las FK de calidad se validan contra las filas padre aceptadas para silver: si un padre se rechaza, sus hijos también se rechazan en cascada. Si el test falla, revisa rejected y los conteos de los marts antes de volver a cargar una partición silver normal y coherente:
 
 ```bash
 make load-warehouse LOAD_DATE=YYYY-MM-DD
@@ -567,7 +567,7 @@ make airflow-logs
 
 ### dbt test fails on relationships
 
-First identify the failing test and inspect its compiled SQL under `dbt/target/compiled/`. Quality checks FK references against bronze: rejecting a parent for another rule does not cascade to its children. Review rejected records and mart counts before reloading a consistent normal silver partition:
+First identify the failing test and inspect its compiled SQL under `dbt/target/compiled/`. Quality checks FK references against parent rows accepted for silver: when a parent is rejected, its children are rejected in cascade too. If the test fails, review rejected records and mart counts before reloading a consistent normal silver partition:
 
 ```bash
 make load-warehouse LOAD_DATE=YYYY-MM-DD
