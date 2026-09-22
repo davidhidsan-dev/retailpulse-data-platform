@@ -82,7 +82,7 @@ Más detalle: [`docs/architecture.md`](docs/architecture.md).
 
 ## Ejecución rápida
 
-Preparar entorno:
+Requiere Python 3.11. Preparar entorno:
 
 ```bash
 cp .env.example .env
@@ -94,6 +94,7 @@ En PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
+python -m pip install -r requirements.txt
 Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 ```
 
@@ -227,6 +228,7 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 ├── docker-compose.yml            # PostgreSQL
 ├── docker-compose.airflow.yml    # Airflow opcional
 ├── Dockerfile.airflow
+├── constraints.txt               # Resolución exacta probada en Python 3.11
 ├── Makefile
 └── requirements.txt
 ```
