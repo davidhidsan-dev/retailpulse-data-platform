@@ -90,13 +90,14 @@ Si una fila incumple varias reglas, los motivos se concatenan con `; `.
 - `input_rows`
 - `valid_rows`
 - `rejected_rows`
+- `rejection_rate`
 - `status`
 
 Estados:
 
 - `passed`: no hay rejected.
 - `warning`: hay rejected.
-- `failed`: error de validación o una tabla sin filas válidas.
+- `failed`: error de validación, una tabla sin filas válidas o demasiados rechazos.
 
 ## ES — Publicación de silver
 
@@ -107,9 +108,14 @@ estaba vacía. Comprueba todas las tablas antes de publicar archivos silver y
 registra `failed` en audit para la tabla que bloqueó la ejecución. Conserva sus
 registros rechazados para diagnóstico.
 
-La opción `--allow-empty` permite omitir este control en demostraciones
-controladas. `make quality-demo` la utiliza porque un dataset pequeño puede
-tener una única fila por tabla y rechazarla deliberadamente.
+También bloquea la publicación cuando más del 10 % de una tabla se rechaza. El
+límite se puede ajustar entre 0 y 1 con `--max-rejection-rate`; debe responder a
+una decisión de negocio antes de cambiarse.
+
+Las opciones `--allow-empty` y `--max-rejection-rate 1` permiten omitir ambos
+controles en demostraciones controladas. `make quality-demo` las utiliza porque
+un dataset pequeño puede tener una única fila por tabla y rechazarla
+deliberadamente.
 
 ## ES — Ejecución
 
@@ -253,13 +259,14 @@ If a row fails several rules, reasons are joined with `; `.
 - `input_rows`
 - `valid_rows`
 - `rejected_rows`
+- `rejection_rate`
 - `status`
 
 Statuses:
 
 - `passed`: no rejected rows.
 - `warning`: rejected rows exist.
-- `failed`: validation error or a table with no valid rows.
+- `failed`: validation error, a table with no valid rows or too many rejected rows.
 
 ## EN — Silver publication
 
@@ -270,9 +277,13 @@ input. It checks every table before publishing silver files and records `failed`
 for the table that blocked the run. Its rejected records remain available for
 diagnosis.
 
-The `--allow-empty` option bypasses this check for controlled demonstrations.
-`make quality-demo` uses it because a small dataset can have just one row per
-table and deliberately reject it.
+It also blocks publication when more than 10% of a table is rejected. The limit
+can be adjusted between 0 and 1 with `--max-rejection-rate`; changing it should
+follow an explicit business decision.
+
+The `--allow-empty` and `--max-rejection-rate 1` options bypass both checks for
+controlled demonstrations. `make quality-demo` uses them because a small
+dataset can have just one row per table and deliberately reject it.
 
 ## EN — Execution
 

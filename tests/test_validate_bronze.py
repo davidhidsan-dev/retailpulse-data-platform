@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from src.quality.validate_bronze import (
+    DEFAULT_MAX_REJECTION_RATE,
     QUALITY_METADATA_COLUMNS,
     parse_args,
     validate_bronze_quality,
@@ -215,12 +216,14 @@ def test_quality_pipeline_writes_silver_rejected_and_audit_without_indexes(
         data_root=tmp_path,
         quality_run_id=QUALITY_RUN_ID,
         quality_checked_at=QUALITY_CHECKED_AT,
+        max_rejection_rate=1.0,
     )
 
     assert len(results) == 6
     assert results["customers"].input_rows == 2
     assert results["customers"].valid_rows == 1
     assert results["customers"].rejected_rows == 1
+    assert results["customers"].rejection_rate == 0.5
     assert results["customers"].status == "warning"
 
     for table, result in results.items():
@@ -248,6 +251,7 @@ def test_quality_pipeline_writes_silver_rejected_and_audit_without_indexes(
         "input_rows",
         "valid_rows",
         "rejected_rows",
+        "rejection_rate",
         "status",
     }.issubset(audit.columns)
     assert audit["quality_run_id"].eq(QUALITY_RUN_ID).all()
@@ -279,7 +283,10 @@ def test_rejected_parents_cause_dependent_rows_to_be_rejected(
         dataframe.to_parquet(path, index=False)
 
     results = validate_bronze_quality(
-        LOAD_DATE, data_root=tmp_path, tables=tuple(reversed(tuple(frames)))
+        LOAD_DATE,
+        data_root=tmp_path,
+        tables=tuple(reversed(tuple(frames))),
+        max_rejection_rate=1.0,
     )
 
     expected = {
@@ -316,7 +323,62 @@ def test_parse_args_parses_load_date() -> None:
     assert args.load_date == LOAD_DATE
     assert defaults.load_date is None
     assert not defaults.allow_empty
+    assert defaults.max_rejection_rate == DEFAULT_MAX_REJECTION_RATE
     assert parse_args(["--allow-empty"]).allow_empty
+    assert parse_args(["--max-rejection-rate", "0.25"]).max_rejection_rate == 0.25
+
+
+def test_excessive_rejection_rate_blocks_silver_publication(
+    tmp_path: Path,
+) -> None:
+    base_product = _valid_bronze_frames()["products"].iloc[[0]].copy()
+    products = pd.concat([base_product] * 10, ignore_index=True)
+    products["product_id"] = range(1, 11)
+    products["sku"] = [f"SKU-{product_id}" for product_id in range(1, 11)]
+    products.loc[:1, "unit_price"] = -1
+
+    bronze_path = build_lake_path(
+        "bronze", "postgres", "products", LOAD_DATE, tmp_path
+    )
+    bronze_path.parent.mkdir(parents=True, exist_ok=True)
+    products.to_parquet(bronze_path, index=False)
+
+    silver_path = build_lake_path(
+        "silver", "postgres", "products", LOAD_DATE, tmp_path
+    )
+    silver_path.parent.mkdir(parents=True, exist_ok=True)
+    previous_silver = pd.DataFrame({"previous_run": [42]})
+    previous_silver.to_parquet(silver_path, index=False)
+
+    with pytest.raises(
+        ValueError,
+        match="products rejection rate 20.00% exceeds the 10.00% limit",
+    ):
+        validate_bronze_quality(
+            LOAD_DATE,
+            data_root=tmp_path,
+            tables=("products",),
+            quality_run_id=QUALITY_RUN_ID,
+            quality_checked_at=QUALITY_CHECKED_AT,
+        )
+
+    pd.testing.assert_frame_equal(pd.read_parquet(silver_path), previous_silver)
+    rejected = pd.read_parquet(
+        build_lake_path("rejected", "postgres", "products", LOAD_DATE, tmp_path)
+    )
+    assert len(rejected) == 2
+
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert audit.loc[0, "status"] == "failed"
+    assert audit.loc[0, "valid_rows"] == 8
+    assert audit.loc[0, "rejected_rows"] == 2
+    assert audit.loc[0, "rejection_rate"] == pytest.approx(0.2)
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.1", "nan", "not-a-number"])
+def test_parse_args_rejects_invalid_rejection_rate(value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--max-rejection-rate", value])
 
 
 def test_missing_bronze_partition_records_failed_audit(tmp_path: Path) -> None:
@@ -357,7 +419,9 @@ def test_empty_silver_table_blocks_publication_and_records_failure(
     pd.DataFrame({"previous_run": [42]}).to_parquet(previous_silver, index=False)
 
     with pytest.raises(ValueError, match="products has no valid rows"):
-        validate_bronze_quality(LOAD_DATE, data_root=tmp_path)
+        validate_bronze_quality(
+            LOAD_DATE, data_root=tmp_path, max_rejection_rate=1.0
+        )
 
     pd.testing.assert_frame_equal(
         pd.read_parquet(previous_silver), pd.DataFrame({"previous_run": [42]})

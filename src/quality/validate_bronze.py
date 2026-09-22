@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -39,6 +40,7 @@ LOGGER = logging.getLogger(__name__)
 SOURCE_SYSTEM = "postgres"
 SOURCE_TABLES = SOURCE_TABLE_LOAD_ORDER
 QUALITY_METADATA_COLUMNS = ("quality_run_id", "quality_checked_at")
+DEFAULT_MAX_REJECTION_RATE = 0.10
 
 CUSTOMER_SEGMENTS = {"high_value", "frequent", "occasional", "inactive", "new"}
 ORDER_STATUSES = {"completed", "cancelled", "refunded", "pending"}
@@ -99,6 +101,7 @@ class QualityResult:
     input_rows: int
     valid_rows: int
     rejected_rows: int
+    rejection_rate: float
     status: str
     silver_path: Path
     rejected_path: Path
@@ -111,6 +114,13 @@ def _utc_timestamp(value: pd.Timestamp | str | None = None) -> pd.Timestamp:
     if timestamp.tzinfo is None:
         return timestamp.tz_localize("UTC")
     return timestamp.tz_convert("UTC")
+
+
+def _validate_max_rejection_rate(value: float) -> float:
+    rate = float(value)
+    if not math.isfinite(rate) or not 0 <= rate <= 1:
+        raise ValueError("max_rejection_rate must be between 0 and 1")
+    return rate
 
 
 def _ensure_columns(dataframe: pd.DataFrame, table: str) -> None:
@@ -334,9 +344,11 @@ def validate_bronze_quality(
     quality_run_id: str | None = None,
     quality_checked_at: pd.Timestamp | str | None = None,
     allow_empty: bool = False,
+    max_rejection_rate: float = DEFAULT_MAX_REJECTION_RATE,
 ) -> dict[str, QualityResult]:
-    """Validate bronze and require non-empty silver tables before publishing."""
+    """Validate bronze and enforce publication thresholds for silver tables."""
     resolved_date = resolve_load_date(load_date)
+    rejection_limit = _validate_max_rejection_rate(max_rejection_rate)
     selected_tables = tuple(tables)
     unsupported = [table for table in selected_tables if table not in SOURCE_TABLES]
     if unsupported:
@@ -363,6 +375,7 @@ def validate_bronze_quality(
                         "input_rows": 0,
                         "valid_rows": 0,
                         "rejected_rows": 0,
+                        "rejection_rate": 0.0,
                         "status": "failed",
                     }
                 ],
@@ -416,11 +429,21 @@ def validate_bronze_quality(
                 raise ValueError(
                     f"{table} has no valid rows; silver was not published."
                 )
+            rejection_rate = len(rejected) / len(source) if len(source) else 0.0
+            if rejection_rate > rejection_limit:
+                write_quality_table(
+                    rejected, "rejected", table, resolved_date, data_root
+                )
+                raise ValueError(
+                    f"{table} rejection rate {rejection_rate:.2%} exceeds "
+                    f"the {rejection_limit:.2%} limit; silver was not published."
+                )
             accepted_frames[table] = valid
 
         for table in selected_tables:
             source = bronze_frames[table]
             valid, rejected = validated_frames[table]
+            rejection_rate = len(rejected) / len(source) if len(source) else 0.0
             silver_path = write_quality_table(
                 valid, "silver", table, resolved_date, data_root
             )
@@ -433,6 +456,7 @@ def validate_bronze_quality(
                 input_rows=len(source),
                 valid_rows=len(valid),
                 rejected_rows=len(rejected),
+                rejection_rate=rejection_rate,
                 status=status,
                 silver_path=silver_path,
                 rejected_path=rejected_path,
@@ -450,6 +474,7 @@ def validate_bronze_quality(
                     "input_rows": len(source),
                     "valid_rows": len(valid),
                     "rejected_rows": len(rejected),
+                    "rejection_rate": rejection_rate,
                     "status": status,
                 }
             )
@@ -464,6 +489,9 @@ def validate_bronze_quality(
     except Exception:
         failed_table = table
         failed_frames = validated_frames.get(failed_table)
+        failed_input_rows = len(bronze_frames[failed_table])
+        failed_valid_rows = len(failed_frames[0]) if failed_frames else 0
+        failed_rejected_rows = len(failed_frames[1]) if failed_frames else 0
         audit_records.append(
             {
                 "quality_run_id": run_id,
@@ -471,9 +499,14 @@ def validate_bronze_quality(
                 "load_date": resolved_date.isoformat(),
                 "source_system": SOURCE_SYSTEM,
                 "table_name": failed_table,
-                "input_rows": len(bronze_frames[failed_table]),
-                "valid_rows": 0,
-                "rejected_rows": len(failed_frames[1]) if failed_frames else 0,
+                "input_rows": failed_input_rows,
+                "valid_rows": failed_valid_rows,
+                "rejected_rows": failed_rejected_rows,
+                "rejection_rate": (
+                    failed_rejected_rows / failed_input_rows
+                    if failed_input_rows
+                    else 0.0
+                ),
                 "status": "failed",
             }
         )
@@ -488,6 +521,13 @@ def validate_bronze_quality(
 def _parse_load_date(value: str) -> date:
     try:
         return resolve_load_date(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+
+
+def _parse_rejection_rate(value: str) -> float:
+    try:
+        return _validate_max_rejection_rate(float(value))
     except ValueError as error:
         raise argparse.ArgumentTypeError(str(error)) from error
 
@@ -508,6 +548,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Allow empty silver tables for controlled quality demonstrations",
     )
+    parser.add_argument(
+        "--max-rejection-rate",
+        type=_parse_rejection_rate,
+        default=DEFAULT_MAX_REJECTION_RATE,
+        help="maximum rejected-row ratio allowed per table before failure",
+    )
     return parser.parse_args(argv)
 
 
@@ -516,7 +562,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     results = validate_bronze_quality(
-        load_date=args.load_date, allow_empty=args.allow_empty
+        load_date=args.load_date,
+        allow_empty=args.allow_empty,
+        max_rejection_rate=args.max_rejection_rate,
     )
     LOGGER.info(
         "Quality run completed: %s tables, %s valid rows, %s rejected rows, "
