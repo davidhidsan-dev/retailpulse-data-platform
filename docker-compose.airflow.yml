@@ -28,7 +28,7 @@ services:
       DBT_SCHEMA: ${DBT_SCHEMA:-analytics}
     command: standalone
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - airflow_home:/opt/airflow
       - .:/opt/airflow/retailpulse
