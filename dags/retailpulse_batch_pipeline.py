@@ -33,6 +33,7 @@ dag = DAG(
     description="Orchestrate the RetailPulse local batch data pipeline.",
     schedule=None,
     catchup=False,
+    max_active_runs=1,
     is_paused_upon_creation=True,
     tags=["retailpulse", "batch", "data-engineering"],
 )

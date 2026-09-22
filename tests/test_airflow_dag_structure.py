@@ -55,6 +55,7 @@ def test_dag_is_manual_paused_and_has_low_retries() -> None:
 
     assert "schedule=None" in source
     assert "catchup=False" in source
+    assert "max_active_runs=1" in source
     assert "is_paused_upon_creation=True" in source
     assert '"retries": 1' in source
     assert '["retailpulse", "batch", "data-engineering"]' in source

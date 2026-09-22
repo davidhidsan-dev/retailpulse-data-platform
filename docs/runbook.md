@@ -172,7 +172,7 @@ Detener:
 make airflow-down
 ```
 
-Este comando detiene Airflow y PostgreSQL del Compose combinado, conservando volúmenes. Airflow es local/dev con acceso administrativo sin autenticación. El DAG regenera la fuente; no lo ejecutes a la vez que el flujo manual, porque comparten datos.
+Este comando detiene Airflow y PostgreSQL del Compose combinado, conservando volúmenes. Airflow es local/dev con acceso administrativo sin autenticación. El DAG admite una sola ejecución activa; otra ejecución queda en espera. El DAG regenera la fuente; no lo ejecutes a la vez que el flujo manual, porque comparten datos.
 
 ## ES — Limpieza del entorno
 
@@ -464,7 +464,7 @@ Stop:
 make airflow-down
 ```
 
-This command stops both Airflow and PostgreSQL in the combined Compose project, preserving volumes. Airflow is local/dev with administrative access without authentication. The DAG regenerates the source; do not run it concurrently with the manual flow, as they share data.
+This command stops both Airflow and PostgreSQL in the combined Compose project, preserving volumes. Airflow is local/dev with administrative access without authentication. The DAG allows one active run; another run waits. The DAG regenerates the source; do not run it concurrently with the manual flow, as they share data.
 
 ## EN — Environment cleanup
 
