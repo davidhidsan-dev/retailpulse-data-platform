@@ -26,3 +26,52 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+  postgres-integration:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      POSTGRES_USER: retailpulse_user
+      POSTGRES_PASSWORD: retailpulse_password
+      POSTGRES_DB: retailpulse
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      DBT_SCHEMA: analytics
+      RUN_POSTGRES_INTEGRATION: "1"
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: retailpulse_user
+          POSTGRES_PASSWORD: retailpulse_password
+          POSTGRES_DB: retailpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U retailpulse_user -d retailpulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Run PostgreSQL integration test
+        run: pytest -q tests/integration/test_postgres_pipeline.py
+
+      - name: Build and test dbt models
+        run: |
+          cp dbt/profiles.yml.example dbt/profiles.yml
+          dbt build --project-dir dbt --profiles-dir dbt

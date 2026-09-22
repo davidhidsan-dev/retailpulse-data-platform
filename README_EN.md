@@ -30,7 +30,7 @@ Included:
 - dbt staging and mart models.
 - dbt tests for keys, accepted values and relationships.
 - optional local Airflow orchestration.
-- lightweight pytest and GitHub Actions checks.
+- unit tests and a reduced real-PostgreSQL and dbt run in GitHub Actions.
 
 v1.0 covers the full pipeline up to the dbt marts and includes local orchestration with Airflow. The dashboard and other extensions are left for later phases.
 
@@ -263,7 +263,7 @@ The pipeline architecture, project scope, result validation, final decisions, an
 - There is no dashboard in v1.0.
 - Airflow is local/dev only.
 - There are no SCDs or semantic metrics layer.
-- CI does not execute the full pipeline with real services.
+- CI runs a reduced pipeline through dbt with real PostgreSQL; Airflow is validated separately in local development.
 - Rejected records are kept in the lake, not analytical marts.
 
 ## Reasonable next steps
