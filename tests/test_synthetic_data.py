@@ -12,7 +12,9 @@ from src.synthetic_data.generate_retail_data import (
     DEFAULT_PRODUCTS,
     DEFAULT_SEED,
     FIRST_NAMES,
+    INITIAL_CATALOG_RATIO,
     LAST_NAMES,
+    MAX_ORDER_LOOKBACK_DAYS,
     ORDER_STATUSES,
     PAYMENT_METHODS,
     PAYMENT_STATUSES,
@@ -25,6 +27,8 @@ from src.synthetic_data.generate_retail_data import (
     _timestamp_between,
     _timestamp_days_ago,
     generate_all_data,
+    generate_order_items,
+    generate_products,
     parse_args,
 )
 
@@ -145,6 +149,17 @@ def test_product_variant_adjusts_the_same_base_price() -> None:
     assert _apply_variant_price(100.0, "Premium") == 130.0
 
 
+def test_initial_catalog_covers_twenty_percent_of_products() -> None:
+    products = generate_products(10, rng=np.random.default_rng(42))
+    simulation_start = REFERENCE_DATE - pd.Timedelta(
+        days=MAX_ORDER_LOOKBACK_DAYS
+    )
+    initial_catalog = products.loc[products["created_at"].le(simulation_start)]
+
+    assert INITIAL_CATALOG_RATIO == 0.20
+    assert len(initial_catalog) == 2
+
+
 def test_product_prices_are_positive(
     synthetic_data: dict[str, pd.DataFrame],
 ) -> None:
@@ -178,6 +193,55 @@ def test_order_items_reference_existing_products(
 ) -> None:
     product_ids = set(synthetic_data["products"]["product_id"])
     assert set(synthetic_data["order_items"]["product_id"]).issubset(product_ids)
+
+
+def test_products_exist_before_their_order_items(
+    synthetic_data: dict[str, pd.DataFrame],
+) -> None:
+    sales = (
+        synthetic_data["order_items"]
+        .merge(
+            synthetic_data["orders"][["order_id", "order_date"]],
+            on="order_id",
+            validate="many_to_one",
+        )
+        .merge(
+            synthetic_data["products"][["product_id", "created_at"]],
+            on="product_id",
+            validate="many_to_one",
+        )
+    )
+
+    assert sales["created_at"].le(sales["order_date"]).all()
+
+
+def test_order_items_only_choose_products_available_on_order_date() -> None:
+    order_date = REFERENCE_DATE - pd.Timedelta(days=100)
+    orders = pd.DataFrame(
+        {
+            "order_id": [1],
+            "customer_id": [1],
+            "order_date": [order_date],
+            "order_status": ["completed"],
+            "country": ["Spain"],
+        }
+    )
+    products = pd.DataFrame(
+        {
+            "product_id": [10, 20],
+            "unit_price": [25.0, 50.0],
+            "created_at": [
+                order_date - pd.Timedelta(days=1),
+                order_date + pd.Timedelta(days=1),
+            ],
+        }
+    )
+
+    items = generate_order_items(
+        orders, products, rng=np.random.default_rng(42)
+    )
+
+    assert items["product_id"].tolist() == [10]
 
 
 def test_inventory_references_existing_products(

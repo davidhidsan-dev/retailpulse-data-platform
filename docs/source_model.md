@@ -35,8 +35,10 @@ erDiagram
 - `product_id` es la clave interna estable.
 - `sku` es el identificador comercial del producto y es único.
 - La variante del nombre modifica el precio base con un multiplicador sencillo; las variantes premium tienden a ser más caras y las básicas o compactas, más baratas.
+- El 20 % de los productos forma el catálogo inicial; el resto se incorpora durante el periodo simulado.
 - Cada producto tiene un único registro de inventario.
 - Cada pedido contiene una o varias líneas en `order_items`.
+- Una línea solo puede seleccionar productos dados de alta en la fecha del pedido.
 - Cada pedido tiene un único pago en `payments`.
 - Los estados de pedido y pago están restringidos por dominios controlados.
 - El generador usa una seed para que los datasets sean reproducibles.
@@ -104,8 +106,10 @@ erDiagram
 - `product_id` is the stable internal key.
 - `sku` is the commercial product identifier and is unique.
 - The name variant adjusts the base price with a simple multiplier; premium variants tend to cost more, while basic or compact variants tend to cost less.
+- Twenty percent of products form the initial catalogue; the rest are introduced during the simulated period.
 - Each product has one inventory record.
 - Each order contains one or more rows in `order_items`.
+- An order item can only select products created by the order date.
 - Each order has one payment in `payments`.
 - Order and payment statuses are restricted to controlled domains.
 - The generator uses a seed to make datasets reproducible.

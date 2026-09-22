@@ -18,6 +18,8 @@ from src.utils.database import (
 
 LOGGER = logging.getLogger(__name__)
 REFERENCE_DATE = pd.Timestamp("2026-01-01", tz="UTC")
+MAX_ORDER_LOOKBACK_DAYS = 540
+INITIAL_CATALOG_RATIO = 0.20
 
 DEFAULT_CUSTOMERS = 2_000
 DEFAULT_PRODUCTS = 300
@@ -338,6 +340,11 @@ def generate_products(
     categories = generator.choice(tuple(PRODUCT_CATALOG), size=n_products)
     product_ids = np.arange(1, n_products + 1)
     records = []
+    initial_catalog_size = (
+        max(1, int(np.ceil(n_products * INITIAL_CATALOG_RATIO)))
+        if n_products
+        else 0
+    )
 
     for product_id, category in zip(product_ids, categories, strict=True):
         category_code, catalogue_entries = PRODUCT_CATALOG[category]
@@ -346,6 +353,13 @@ def generate_products(
         )
         variant = generator.choice(CATEGORY_VARIANTS[category])
         base_price = float(generator.uniform(minimum_price, maximum_price))
+        belongs_to_initial_catalog = product_id <= initial_catalog_size
+        minimum_age = (
+            MAX_ORDER_LOOKBACK_DAYS if belongs_to_initial_catalog else 1
+        )
+        maximum_age = 900 if belongs_to_initial_catalog else (
+            MAX_ORDER_LOOKBACK_DAYS - 1
+        )
         records.append(
             {
                 "product_id": int(product_id),
@@ -353,7 +367,9 @@ def generate_products(
                 "product_name": f"{base_name} {variant}",
                 "category": category,
                 "unit_price": _apply_variant_price(base_price, variant),
-                "created_at": _timestamp_days_ago(generator, 1, 540),
+                "created_at": _timestamp_days_ago(
+                    generator, minimum_age, maximum_age
+                ),
             }
         )
 
@@ -393,7 +409,10 @@ def _order_window(
 
     if segment == "inactive":
         return (
-            max(customer_created_at, REFERENCE_DATE - pd.Timedelta(days=540)),
+            max(
+                customer_created_at,
+                REFERENCE_DATE - pd.Timedelta(days=MAX_ORDER_LOOKBACK_DAYS),
+            ),
             REFERENCE_DATE - pd.Timedelta(days=365),
         )
     if segment == "new":
@@ -519,10 +538,15 @@ def generate_order_items(
     )
     records: list[dict[str, int | float]] = []
     next_order_item_id = 1
+    product_created_at = pd.to_datetime(
+        products_df["created_at"], errors="raise", utc=True
+    )
 
     for order in orders_df.itertuples(index=False):
+        order_date = pd.to_datetime(order.order_date, utc=True)
+        eligible_products = products_df.loc[product_created_at.le(order_date)]
         segment = str(behavior_segments.get(order.customer_id, "occasional"))
-        product_pool = _product_pool_for_segment(products_df, segment)
+        product_pool = _product_pool_for_segment(eligible_products, segment)
         maximum_lines, maximum_quantity = _line_profile(segment)
         line_count = int(
             generator.integers(1, min(maximum_lines, len(product_pool)) + 1)
