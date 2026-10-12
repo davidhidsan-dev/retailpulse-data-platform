@@ -122,7 +122,9 @@ Objetivo:
 
 Limitación:
 
-- Airflow local no añade locking, SLA ni gestión productiva de reintentos.
+- Airflow limita el DAG a una ejecución activa y reintenta cada tarea una vez
+  tras dos minutos, pero no implementa locks externos por partición,
+  SLA/alertas ni una estrategia productiva de reintentos y recuperación.
 
 ## ES — Reglas prácticas
 
@@ -256,7 +258,9 @@ Goal:
 
 Limitation:
 
-- local Airflow does not add locking, SLA or production retry management.
+- Airflow limits the DAG to one active run and retries each task once after two
+  minutes, but it does not implement external partition locks, SLAs/alerts, or
+  a production retry and recovery strategy.
 
 ## EN — Practical rules
 
