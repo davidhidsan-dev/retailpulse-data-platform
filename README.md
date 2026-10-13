@@ -223,8 +223,7 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 │   ├── utils/                    # Configuración, rutas y base de datos
 │   └── warehouse/                # Carga silver → warehouse
 ├── tests/                        # Tests unitarios y estáticos
-├── docker-compose.yml            # PostgreSQL
-├── docker-compose.airflow.yml    # Airflow opcional
+├── docker-compose.yml            # PostgreSQL y Airflow
 ├── Dockerfile.airflow
 ├── constraints.txt               # Resolución exacta probada en Python 3.11
 ├── Makefile

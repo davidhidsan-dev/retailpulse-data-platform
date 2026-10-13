@@ -77,16 +77,13 @@ def test_dag_only_orchestrates_existing_commands() -> None:
     assert "read_sql" not in source
 
 
-def test_airflow_isolated_from_main_runtime() -> None:
+def test_airflow_dependencies_are_isolated_from_main_python_runtime() -> None:
     requirements = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
-    main_compose = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-    airflow_compose = (
-        PROJECT_ROOT / "docker-compose.airflow.yml"
-    ).read_text(encoding="utf-8")
+    compose = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert "apache-airflow" not in requirements.lower()
-    assert "airflow:" not in main_compose.lower()
-    assert "airflow:" in airflow_compose.lower()
-    assert "POSTGRES_HOST: postgres" in airflow_compose
-    assert 'AIRFLOW__CORE__PARALLELISM: "4"' in airflow_compose
-    assert "PATH: /home/airflow/.retailpulse-venv/bin:" in airflow_compose
+    assert "postgres:" in compose.lower()
+    assert "airflow:" in compose.lower()
+    assert "POSTGRES_HOST: postgres" in compose
+    assert 'AIRFLOW__CORE__PARALLELISM: "4"' in compose
+    assert "PATH: /home/airflow/.retailpulse-venv/bin:" in compose

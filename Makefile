@@ -1,11 +1,10 @@
 DEMO_LOAD_DATE ?= 2099-01-01
 LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
-AIRFLOW_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.airflow.yml
 
 .PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps
 
 up:
-	docker compose up -d
+	docker compose up -d postgres
 
 down:
 	docker compose down
@@ -48,16 +47,16 @@ dbt-docs-generate:
 	cd dbt && dbt docs generate --profiles-dir .
 
 airflow-up:
-	$(AIRFLOW_COMPOSE) up -d --build postgres airflow
+	docker compose up -d --build postgres airflow
 
 airflow-down:
-	$(AIRFLOW_COMPOSE) down
+	docker compose down
 
 airflow-logs:
-	$(AIRFLOW_COMPOSE) logs -f airflow
+	docker compose logs -f airflow
 
 airflow-ps:
-	$(AIRFLOW_COMPOSE) ps
+	docker compose ps
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"

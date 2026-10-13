@@ -88,14 +88,13 @@ Este comando detiene también PostgreSQL en el Compose combinado y conserva los 
 
 ## ES — Docker
 
-Airflow se define en `docker-compose.airflow.yml`, separado del `docker-compose.yml` principal.
+PostgreSQL y Airflow se definen en un único `docker-compose.yml`. Los comandos seleccionan qué servicios se levantan.
 
 Motivos:
 
-- mantener PostgreSQL como flujo básico.
-- evitar que Airflow pese sobre el uso manual.
-- permitir orquestación opcional.
-- aislar dependencias de Airflow.
+- `make up` levanta solo PostgreSQL para el flujo manual.
+- `make airflow-up` construye y levanta PostgreSQL y Airflow.
+- las dependencias de Python de Airflow permanecen aisladas en su imagen.
 
 ## ES — Ejecución sin Airflow
 
@@ -212,14 +211,13 @@ This command also stops PostgreSQL in the combined Compose project and preserves
 
 ## EN — Docker
 
-Airflow is defined in `docker-compose.airflow.yml`, separated from the main `docker-compose.yml`.
+PostgreSQL and Airflow are defined in a single `docker-compose.yml`. Commands select which services are started.
 
 Reasons:
 
-- keep PostgreSQL as the basic flow.
-- avoid making manual usage heavier.
-- make orchestration optional.
-- isolate Airflow dependencies.
+- `make up` starts only PostgreSQL for the manual flow.
+- `make airflow-up` builds and starts PostgreSQL and Airflow.
+- Airflow's Python dependencies remain isolated in its image.
 
 ## EN — Execution without Airflow
 

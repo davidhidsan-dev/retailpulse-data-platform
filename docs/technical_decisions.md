@@ -166,7 +166,7 @@ Usar solo Makefile.
 
 Airflow añade complejidad local, por eso no debe contener lógica de negocio.
 
-## ES — TD-010 Docker Compose separado para Airflow
+## ES — TD-010 Docker Compose único con servicios seleccionables
 
 ### Contexto
 
@@ -174,15 +174,15 @@ Airflow es pesado y no debe complicar el flujo básico.
 
 ### Decisión
 
-Mantener `docker-compose.yml` para PostgreSQL y `docker-compose.airflow.yml` como extensión opcional.
+Mantener PostgreSQL y Airflow en un único `docker-compose.yml`, seleccionando los servicios desde los comandos del Makefile.
 
 ### Alternativa simple
 
-Un único compose con todo.
+Archivos Compose separados para PostgreSQL y Airflow.
 
 ### Limitación
 
-Hay más archivos, pero el uso básico queda más limpio.
+Es necesario indicar el servicio `postgres` para que el flujo básico no levante también Airflow.
 
 ## ES — TD-011 Full refresh en v1.0
 
@@ -370,7 +370,7 @@ Use only Makefile.
 
 Airflow adds local complexity, so it must not contain business logic.
 
-## EN — TD-010 Separate Docker Compose for Airflow
+## EN — TD-010 Single Docker Compose with selectable services
 
 ### Context
 
@@ -378,15 +378,15 @@ Airflow is heavy and should not complicate the basic flow.
 
 ### Decision
 
-Keep `docker-compose.yml` for PostgreSQL and `docker-compose.airflow.yml` as an optional extension.
+Keep PostgreSQL and Airflow in one `docker-compose.yml`, selecting services through Makefile commands.
 
 ### Simple alternative
 
-Use one compose file for everything.
+Use separate Compose files for PostgreSQL and Airflow.
 
 ### Limitation
 
-There are more files, but the basic path stays cleaner.
+The `postgres` service must be selected explicitly so the basic flow does not also start Airflow.
 
 ## EN — TD-011 Full refresh in v1.0
 
