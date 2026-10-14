@@ -222,7 +222,7 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 │   ├── synthetic_data/           # Generación sintética
 │   ├── utils/                    # Configuración, rutas y base de datos
 │   └── warehouse/                # Carga silver → warehouse
-├── tests/                        # Tests unitarios y estáticos
+├── tests/                        # Tests unitarios y de integración
 ├── docker-compose.yml            # PostgreSQL y Airflow
 ├── Dockerfile.airflow
 ├── constraints.txt               # Resolución exacta probada en Python 3.11
@@ -243,7 +243,6 @@ Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 - [`docs/orchestration.md`](docs/orchestration.md)
 - [`docs/runbook.md`](docs/runbook.md)
 - [`docs/technical_decisions.md`](docs/technical_decisions.md)
-- [`docs/v1_validation_checklist.md`](docs/v1_validation_checklist.md)
 
 ## Nota sobre el desarrollo
 
