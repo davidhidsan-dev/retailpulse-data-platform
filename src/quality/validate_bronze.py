@@ -46,6 +46,13 @@ CUSTOMER_SEGMENTS = {"high_value", "frequent", "occasional", "inactive", "new"}
 ORDER_STATUSES = {"completed", "cancelled", "refunded", "pending"}
 PAYMENT_METHODS = {"credit_card", "paypal", "bank_transfer", "gift_card"}
 PAYMENT_STATUSES = {"paid", "failed", "refunded", "pending"}
+PAYMENT_STATUS_BY_ORDER = {
+    "completed": "paid",
+    "cancelled": "failed",
+    "refunded": "refunded",
+    "pending": "pending",
+}
+ORDER_COMPLETENESS_TABLES = {"orders", "order_items", "payments"}
 
 REQUIRED_COLUMNS = {
     "customers": {
@@ -139,6 +146,139 @@ def _require_reference(
     if column not in reference_frames[table].columns:
         raise ValueError(f"{table} is missing reference column: {column}")
     return reference_frames[table]
+
+
+def _add_rejection_reason(
+    reasons: pd.Series, mask: pd.Series, reason: str
+) -> None:
+    """Append one reason to every selected row."""
+    for index in reasons.index[mask.fillna(False).astype(bool)]:
+        current = reasons.at[index]
+        reasons.at[index] = f"{current}; {reason}" if current else reason
+
+
+def _move_rejected_rows(
+    valid: pd.DataFrame,
+    rejected: pd.DataFrame,
+    reasons: pd.Series,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Move valid rows with a non-empty reason into the rejected frame."""
+    aligned_reasons = reasons.reindex(valid.index).fillna("").astype("string")
+    rejected_mask = aligned_reasons.str.len().gt(0)
+    moved = valid.loc[rejected_mask].copy()
+    moved["rejection_reason"] = aligned_reasons.loc[rejected_mask].to_numpy()
+    remaining = valid.loc[~rejected_mask].copy()
+    combined_rejected = pd.concat([rejected, moved], ignore_index=True)
+    return remaining.reset_index(drop=True), combined_rejected.reset_index(drop=True)
+
+
+def _order_ids(dataframe: pd.DataFrame) -> set[object]:
+    if "order_id" not in dataframe.columns:
+        return set()
+    return set(dataframe["order_id"].dropna())
+
+
+def _enforce_complete_orders(
+    validated_frames: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
+) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
+    """Keep orders, their items and payment as one all-or-nothing unit."""
+    updated = dict(validated_frames)
+    orders, rejected_orders = updated["orders"]
+    items, rejected_items = updated["order_items"]
+    payments, rejected_payments = updated["payments"]
+
+    order_statuses = orders.set_index("order_id")["order_status"]
+    item_totals = (
+        items.assign(
+            _numeric_line_total=pd.to_numeric(items["line_total"], errors="coerce")
+        )
+        .groupby("order_id")["_numeric_line_total"]
+        .sum()
+        .round(2)
+    )
+
+    payment_reasons = pd.Series("", index=payments.index, dtype="string")
+    expected_statuses = payments["order_id"].map(order_statuses).map(
+        PAYMENT_STATUS_BY_ORDER
+    )
+    _add_rejection_reason(
+        payment_reasons,
+        expected_statuses.notna() & payments["payment_status"].ne(expected_statuses),
+        "payment_status does not match order_status",
+    )
+
+    expected_amounts = payments["order_id"].map(item_totals)
+    payment_amounts = pd.to_numeric(payments["payment_amount"], errors="coerce")
+    _add_rejection_reason(
+        payment_reasons,
+        expected_amounts.notna()
+        & payment_amounts.sub(expected_amounts).abs().gt(0.005),
+        "payment_amount does not match order line total",
+    )
+    payments, rejected_payments = _move_rejected_rows(
+        payments, rejected_payments, payment_reasons
+    )
+
+    valid_order_ids = _order_ids(orders)
+    valid_item_order_ids = _order_ids(items)
+    valid_payment_order_ids = _order_ids(payments)
+    rejected_item_order_ids = _order_ids(rejected_items).intersection(valid_order_ids)
+    rejected_payment_order_ids = _order_ids(rejected_payments).intersection(
+        valid_order_ids
+    )
+
+    order_reason_map: dict[object, str] = {}
+    for order_id in valid_order_ids:
+        reasons: list[str] = []
+        if order_id in rejected_item_order_ids:
+            reasons.append("order contains rejected order_items")
+        if order_id not in valid_item_order_ids:
+            reasons.append("order has no valid order_items")
+        if order_id in rejected_payment_order_ids:
+            reasons.append("order has a rejected payment")
+        if order_id not in valid_payment_order_ids:
+            reasons.append("order has no valid payment")
+        if reasons:
+            order_reason_map[order_id] = "; ".join(reasons)
+
+    if not order_reason_map:
+        updated["payments"] = (payments, rejected_payments)
+        return updated
+
+    dependent_reason_map = {
+        order_id: f"order rejected as incomplete: {reason}"
+        for order_id, reason in order_reason_map.items()
+    }
+
+    order_reasons = orders["order_id"].map(dependent_reason_map).fillna("")
+    orders, rejected_orders = _move_rejected_rows(
+        orders, rejected_orders, order_reasons
+    )
+
+    # Preserve the original row-level error and add the cascade reason before
+    # combining these frames with rows moved solely by the order policy.
+    for rejected in (rejected_items, rejected_payments):
+        policy_reasons = rejected["order_id"].map(dependent_reason_map)
+        affected = policy_reasons.notna()
+        rejected.loc[affected, "rejection_reason"] = (
+            rejected.loc[affected, "rejection_reason"].astype("string")
+            + "; "
+            + policy_reasons.loc[affected].astype("string")
+        )
+
+    item_reasons = items["order_id"].map(dependent_reason_map).fillna("")
+    items, rejected_items = _move_rejected_rows(
+        items, rejected_items, item_reasons
+    )
+    payment_reasons = payments["order_id"].map(dependent_reason_map).fillna("")
+    payments, rejected_payments = _move_rejected_rows(
+        payments, rejected_payments, payment_reasons
+    )
+
+    updated["orders"] = (orders, rejected_orders)
+    updated["order_items"] = (items, rejected_items)
+    updated["payments"] = (payments, rejected_payments)
+    return updated
 
 
 def validate_table(
@@ -362,6 +502,14 @@ def validate_bronze_quality(
     if unsupported:
         raise ValueError(f"Unsupported source tables: {', '.join(unsupported)}")
 
+    selected_order_tables = ORDER_COMPLETENESS_TABLES.intersection(selected_tables)
+    if selected_order_tables and selected_order_tables != ORDER_COMPLETENESS_TABLES:
+        missing = ", ".join(sorted(ORDER_COMPLETENESS_TABLES - selected_order_tables))
+        raise ValueError(
+            "orders, order_items and payments must be validated together; "
+            f"missing: {missing}"
+        )
+
     run_id = quality_run_id or str(uuid4())
     checked_at = _utc_timestamp(quality_checked_at)
     bronze_frames: dict[str, pd.DataFrame] = {}
@@ -430,6 +578,14 @@ def validate_bronze_quality(
                 quality_checked_at=checked_at,
             )
             validated_frames[table] = (valid, rejected)
+            accepted_frames[table] = valid
+
+        if ORDER_COMPLETENESS_TABLES.issubset(selected_tables):
+            validated_frames = _enforce_complete_orders(validated_frames)
+
+        for table in validation_order:
+            source = bronze_frames[table]
+            valid, rejected = validated_frames[table]
             if valid.empty and not allow_empty:
                 write_quality_table(
                     rejected, "rejected", table, resolved_date, data_root
@@ -446,7 +602,6 @@ def validate_bronze_quality(
                     f"{table} rejection rate {rejection_rate:.2%} exceeds "
                     f"the {rejection_limit:.2%} limit; silver was not published."
                 )
-            accepted_frames[table] = valid
 
         for table in selected_tables:
             source = bronze_frames[table]

@@ -31,7 +31,7 @@ Silver y rejected no modifican los archivos bronze originales.
 | `inventory` | `product_id` presente y único; stock y reorder level enteros, no negativos y finitos; fecha de actualización válida. |
 | `orders` | `order_id` presente y único; cliente presente; fecha válida; país no vacío; estado permitido. |
 | `order_items` | `order_item_id` presente y único; pedido y producto presentes; cantidad entera positiva; precio positivo y finito; total de línea consistente y finito. |
-| `payments` | `payment_id` presente y único; un pago por pedido; método y estado permitidos; importe no negativo y finito; fecha válida. |
+| `payments` | `payment_id` presente y único; un pago por pedido; método y estado permitidos; importe no negativo y finito; fecha válida; importe y estado coherentes con el pedido. |
 
 ## ES — Validaciones referenciales
 
@@ -44,6 +44,14 @@ El proceso comprueba:
 - `payments.order_id` contra `orders.order_id`.
 
 Las referencias se comparan contra las filas padre aceptadas para silver, en orden de dependencias. Si una fila padre se rechaza, las hijas que la referencian también se rechazan.
+
+## ES — Coherencia completa del pedido
+
+`orders`, `order_items` y `payments` se publican como una unidad. Cada pedido debe tener al menos una línea válida y exactamente un pago válido. El importe del pago debe coincidir con la suma de `line_total`, y los estados deben respetar `completed → paid`, `cancelled → failed`, `refunded → refunded` y `pending → pending`.
+
+Si una línea o el pago se rechazan, la cabecera, todas las líneas y el pago de ese pedido se trasladan a rejected. Los productos y clientes válidos no se rechazan por esta cascada. Así, silver nunca contiene un pedido parcial que pueda infravalorar `fact_sales`.
+
+La API de validación exige seleccionar juntas las tres tablas del pedido. Una selección parcial se detiene antes de leer o publicar archivos para impedir que se omita esta política.
 
 ## ES — Salidas
 
@@ -112,6 +120,9 @@ También bloquea la publicación cuando más del 10 % de una tabla se rechaza. E
 límite se puede ajustar entre 0 y 1 con `--max-rejection-rate`; debe responder a
 una decisión de negocio antes de cambiarse.
 
+Los controles de tabla vacía y tasa de rechazo se calculan después de aplicar la
+política de pedido completo, antes de escribir ningún archivo silver.
+
 Las opciones `--allow-empty` y `--max-rejection-rate 1` permiten omitir ambos
 controles en demostraciones controladas. `make quality-demo` las utiliza porque
 un dataset pequeño puede tener una única fila por tabla y rechazarla
@@ -163,7 +174,6 @@ rejected -> diagnóstico / auditoría / reproceso
 
 - Reglas deterministas y locales.
 - No mide frescura con SLA.
-- No compara todavía `payment_amount` contra suma de líneas.
 - Audit es archivo local, no sistema productivo de observabilidad.
 - No hay flujo automático de corrección/reproceso de rejected.
 
@@ -200,7 +210,7 @@ Silver and rejected do not modify the original bronze files.
 | `inventory` | `product_id` present and unique; finite, non-negative integer stock and reorder level; valid update date. |
 | `orders` | `order_id` present and unique; customer present; valid date; non-blank country; accepted status. |
 | `order_items` | `order_item_id` present and unique; order and product present; positive integer quantity; positive finite price; consistent finite line total. |
-| `payments` | `payment_id` present and unique; one payment per order; accepted method and status; finite non-negative amount; valid date. |
+| `payments` | `payment_id` present and unique; one payment per order; accepted method and status; finite non-negative amount; valid date; amount and status consistent with the order. |
 
 ## EN — Referential checks
 
@@ -213,6 +223,14 @@ The process checks:
 - `payments.order_id` against `orders.order_id`.
 
 References are checked against parent rows accepted for silver, in dependency order. When a parent row is rejected, child rows that reference it are rejected too.
+
+## EN — Complete order consistency
+
+`orders`, `order_items` and `payments` are published as one unit. Every order must have at least one valid item and exactly one valid payment. The payment amount must equal the sum of `line_total`, and statuses must follow `completed → paid`, `cancelled → failed`, `refunded → refunded` and `pending → pending`.
+
+If an item or payment is rejected, the order header, all its items and its payment are moved to rejected. Valid products and customers are not rejected by this cascade. This prevents silver from containing a partial order that could understate `fact_sales`.
+
+The validation API requires all three order tables to be selected together. A partial selection stops before reading or publishing files so this policy cannot be bypassed.
 
 ## EN — Outputs
 
@@ -281,6 +299,9 @@ It also blocks publication when more than 10% of a table is rejected. The limit
 can be adjusted between 0 and 1 with `--max-rejection-rate`; changing it should
 follow an explicit business decision.
 
+The empty-table and rejection-rate checks run after the complete-order policy
+and before any silver file is written.
+
 The `--allow-empty` and `--max-rejection-rate 1` options bypass both checks for
 controlled demonstrations. `make quality-demo` uses them because a small
 dataset can have just one row per table and deliberately reject it.
@@ -331,6 +352,5 @@ rejected -> diagnosis / audit / reprocessing
 
 - Deterministic local rules.
 - No freshness SLA.
-- `payment_amount` is not yet compared against order-line totals.
 - Audit is a local file, not production observability.
 - No automatic correction/reprocessing flow for rejected records.

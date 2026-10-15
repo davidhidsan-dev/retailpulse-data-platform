@@ -113,6 +113,44 @@ def _valid_bronze_frames() -> dict[str, pd.DataFrame]:
     }
 
 
+def _add_complete_order(frames: dict[str, pd.DataFrame]) -> None:
+    order = frames["orders"].iloc[[0]].copy()
+    order["order_id"] = 200
+    frames["orders"] = pd.concat([frames["orders"], order], ignore_index=True)
+
+    first_item = frames["order_items"].iloc[[0]].copy()
+    first_item["order_item_id"] = 2000
+    first_item["order_id"] = 200
+    first_item["quantity"] = 1
+    first_item["unit_price"] = 30.0
+    first_item["line_total"] = 30.0
+
+    second_item = first_item.copy()
+    second_item["order_item_id"] = 2001
+    second_item["unit_price"] = 20.0
+    second_item["line_total"] = 20.0
+    frames["order_items"] = pd.concat(
+        [frames["order_items"], first_item, second_item], ignore_index=True
+    )
+
+    payment = frames["payments"].iloc[[0]].copy()
+    payment["payment_id"] = 3000
+    payment["order_id"] = 200
+    payment["payment_amount"] = 50.0
+    frames["payments"] = pd.concat(
+        [frames["payments"], payment], ignore_index=True
+    )
+
+
+def _write_bronze_frames(
+    frames: dict[str, pd.DataFrame], data_root: Path
+) -> None:
+    for table, dataframe in frames.items():
+        path = build_lake_path("bronze", "postgres", table, LOAD_DATE, data_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dataframe.to_parquet(path, index=False)
+
+
 def test_validate_table_separates_rows_and_adds_quality_metadata() -> None:
     customers = _valid_bronze_frames()["customers"]
 
@@ -330,6 +368,123 @@ def test_rejected_parents_cause_dependent_rows_to_be_rejected(
     assert "order_id does not exist in orders" in reasons["order_items"]
     assert "product_id does not exist in products" in reasons["order_items"]
     assert "order_id does not exist in orders" in reasons["payments"]
+
+
+def test_rejected_order_item_rejects_the_complete_order(tmp_path: Path) -> None:
+    frames = _valid_bronze_frames()
+    _add_complete_order(frames)
+    invalid_item = frames["order_items"]["order_item_id"].eq(2001)
+    frames["order_items"].loc[invalid_item, "line_total"] = 25.0
+    _write_bronze_frames(frames, tmp_path)
+
+    results = validate_bronze_quality(
+        LOAD_DATE,
+        data_root=tmp_path,
+        max_rejection_rate=1.0,
+    )
+
+    silver_orders = pd.read_parquet(results["orders"].silver_path)
+    silver_items = pd.read_parquet(results["order_items"].silver_path)
+    silver_payments = pd.read_parquet(results["payments"].silver_path)
+    assert silver_orders["order_id"].tolist() == [100]
+    assert silver_items["order_item_id"].tolist() == [1000]
+    assert silver_payments["payment_id"].tolist() == [2000]
+
+    rejected_orders = pd.read_parquet(results["orders"].rejected_path)
+    rejected_items = pd.read_parquet(results["order_items"].rejected_path)
+    rejected_payments = pd.read_parquet(results["payments"].rejected_path)
+    assert rejected_orders["order_id"].tolist() == [200]
+    assert set(rejected_items["order_item_id"]) == {2000, 2001}
+    assert rejected_payments["payment_id"].tolist() == [3000]
+    assert rejected_items["rejection_reason"].str.contains(
+        "order rejected as incomplete"
+    ).all()
+    assert rejected_items["rejection_reason"].str.count(
+        "order rejected as incomplete"
+    ).eq(1).all()
+    assert rejected_payments["rejection_reason"].str.count(
+        "order rejected as incomplete"
+    ).eq(1).all()
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "reason"),
+    [
+        ("payment_amount", 45.0, "payment_amount does not match"),
+        ("payment_status", "refunded", "payment_status does not match"),
+    ],
+)
+def test_invalid_payment_rejects_the_complete_order(
+    tmp_path: Path, column: str, value: object, reason: str
+) -> None:
+    frames = _valid_bronze_frames()
+    _add_complete_order(frames)
+    affected_payment = frames["payments"]["order_id"].eq(200)
+    frames["payments"].loc[affected_payment, column] = value
+    _write_bronze_frames(frames, tmp_path)
+
+    results = validate_bronze_quality(
+        LOAD_DATE,
+        data_root=tmp_path,
+        max_rejection_rate=1.0,
+    )
+
+    rejected_orders = pd.read_parquet(results["orders"].rejected_path)
+    rejected_items = pd.read_parquet(results["order_items"].rejected_path)
+    rejected_payments = pd.read_parquet(results["payments"].rejected_path)
+    assert rejected_orders["order_id"].tolist() == [200]
+    assert set(rejected_items["order_item_id"]) == {2000, 2001}
+    assert rejected_payments["payment_id"].tolist() == [3000]
+    assert reason in rejected_payments.loc[0, "rejection_reason"]
+    assert rejected_items["rejection_reason"].str.count(
+        "order rejected as incomplete"
+    ).eq(1).all()
+    assert rejected_payments["rejection_reason"].str.count(
+        "order rejected as incomplete"
+    ).eq(1).all()
+
+
+@pytest.mark.parametrize("missing_table", ["order_items", "payments"])
+def test_order_without_required_children_is_not_published(
+    tmp_path: Path, missing_table: str
+) -> None:
+    frames = _valid_bronze_frames()
+    _add_complete_order(frames)
+    frames[missing_table] = frames[missing_table].loc[
+        frames[missing_table]["order_id"].ne(200)
+    ]
+    _write_bronze_frames(frames, tmp_path)
+
+    results = validate_bronze_quality(
+        LOAD_DATE,
+        data_root=tmp_path,
+        max_rejection_rate=1.0,
+    )
+
+    silver_orders = pd.read_parquet(results["orders"].silver_path)
+    rejected_orders = pd.read_parquet(results["orders"].rejected_path)
+    assert silver_orders["order_id"].tolist() == [100]
+    assert rejected_orders["order_id"].tolist() == [200]
+    assert "order has no valid" in rejected_orders.loc[0, "rejection_reason"]
+
+
+@pytest.mark.parametrize(
+    "tables",
+    [
+        ("orders",),
+        ("orders", "order_items"),
+        ("orders", "payments"),
+        ("order_items", "payments"),
+    ],
+)
+def test_order_tables_must_be_validated_together(
+    tmp_path: Path, tables: tuple[str, ...]
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="orders, order_items and payments must be validated together",
+    ):
+        validate_bronze_quality(LOAD_DATE, data_root=tmp_path, tables=tables)
 
 
 def test_parse_args_parses_load_date() -> None:
