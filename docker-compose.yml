@@ -24,8 +24,8 @@ services:
       context: .
       dockerfile: Dockerfile.airflow
       args:
-        AIRFLOW_VERSION: "3.1.5"
-    image: retailpulse-airflow:3.1.5
+        AIRFLOW_VERSION: "3.3.2"
+    image: retailpulse-airflow:3.3.2
     container_name: retailpulse-airflow
     restart: unless-stopped
     depends_on:
