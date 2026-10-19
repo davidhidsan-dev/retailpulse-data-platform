@@ -10,6 +10,7 @@ from src.quality.rules import (
     invalid_emails,
     invalid_foreign_keys,
     invalid_line_totals,
+    invalid_positive_integers,
     negative_values,
     non_positive_values,
     null_values,
@@ -68,14 +69,53 @@ def test_numeric_rules_detect_invalid_prices_and_quantities() -> None:
 
 
 def test_invalid_datetimes_and_fractional_values_detect_type_violations() -> None:
-    dates = pd.DataFrame({"created_at": ["2026-09-01T10:00:00Z", "not-a-date", None]})
+    dates = pd.DataFrame(
+        {"created_at": ["2026-09-01T10:00:00Z", "not-a-date", 123, None]}
+    )
     quantities = pd.DataFrame({"quantity": [1, 1.5, float("inf"), None]})
 
-    assert invalid_datetimes(dates, "created_at").tolist() == [False, True, False]
+    assert invalid_datetimes(dates, "created_at").tolist() == [
+        False,
+        True,
+        True,
+        False,
+    ]
     assert fractional_values(quantities, "quantity").tolist() == [
         False,
         True,
         False,
+        False,
+    ]
+
+
+def test_invalid_positive_integers_detects_type_and_range_violations() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "identifier": [
+                1,
+                2.0,
+                "3",
+                0,
+                -1,
+                1.5,
+                "not-an-integer",
+                float("inf"),
+                True,
+                None,
+            ]
+        }
+    )
+
+    assert invalid_positive_integers(dataframe, "identifier").tolist() == [
+        False,
+        False,
+        False,
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
         False,
     ]
 

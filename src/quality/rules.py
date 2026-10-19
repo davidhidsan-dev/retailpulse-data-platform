@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from numbers import Number
 
 import numpy as np
 import pandas as pd
@@ -38,8 +39,25 @@ def invalid_emails(dataframe: pd.DataFrame, column: str = "email") -> pd.Series:
 def invalid_datetimes(dataframe: pd.DataFrame, column: str) -> pd.Series:
     """Return a mask for non-null values that cannot represent a timestamp."""
     values = dataframe[column]
+    numeric_values = values.map(lambda value: isinstance(value, Number))
     parsed = pd.to_datetime(values, errors="coerce", utc=True)
-    return values.notna() & parsed.isna()
+    return values.notna() & (numeric_values | parsed.isna())
+
+
+def invalid_positive_integers(
+    dataframe: pd.DataFrame, column: str
+) -> pd.Series:
+    """Return a mask for non-null values not representing positive integers."""
+    original = dataframe[column]
+    values = pd.to_numeric(original, errors="coerce")
+    boolean_values = original.map(lambda value: isinstance(value, (bool, np.bool_)))
+    return original.notna() & (
+        boolean_values
+        | values.isna()
+        | ~np.isfinite(values)
+        | values.le(0)
+        | values.mod(1).ne(0)
+    )
 
 
 def fractional_values(dataframe: pd.DataFrame, column: str) -> pd.Series:

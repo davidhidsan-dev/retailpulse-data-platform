@@ -209,10 +209,10 @@ def test_customer_contract_rejects_blank_country_and_duplicate_email() -> None:
     assert "email is duplicated" in reasons.loc[2]
 
 
-def test_product_contract_rejects_invalid_date_and_infinite_price() -> None:
+def test_product_contract_rejects_numeric_date_and_infinite_price() -> None:
     products = _valid_bronze_frames()["products"]
     products["created_at"] = products["created_at"].astype("object")
-    products.loc[0, "created_at"] = "not-a-date"
+    products.loc[0, "created_at"] = 123
     products.loc[0, "unit_price"] = float("inf")
 
     _, rejected = validate_table("products", products)
@@ -220,6 +220,40 @@ def test_product_contract_rejects_invalid_date_and_infinite_price() -> None:
     reason = rejected.loc[0, "rejection_reason"]
     assert "created_at is not a valid datetime" in reason
     assert "unit_price must be > 0" in reason
+
+
+@pytest.mark.parametrize(
+    ("table", "column"),
+    [
+        ("customers", "customer_id"),
+        ("products", "product_id"),
+        ("inventory", "product_id"),
+        ("orders", "order_id"),
+        ("orders", "customer_id"),
+        ("order_items", "order_item_id"),
+        ("order_items", "order_id"),
+        ("order_items", "product_id"),
+        ("payments", "payment_id"),
+        ("payments", "order_id"),
+    ],
+)
+def test_id_contract_rejects_values_not_representing_positive_integers(
+    table: str, column: str
+) -> None:
+    frames = _valid_bronze_frames()
+    dataframe = frames[table]
+    dataframe[column] = dataframe[column].astype("object")
+    dataframe.loc[0, column] = "not-an-integer"
+    references = {
+        name: frames[name]
+        for name in ("customers", "products", "orders")
+        if name != table
+    }
+
+    _, rejected = validate_table(table, dataframe, references)
+
+    invalid_row = rejected.loc[rejected[column].eq("not-an-integer")].iloc[0]
+    assert f"{column} must be a positive integer" in invalid_row["rejection_reason"]
 
 
 @pytest.mark.parametrize("column", ["stock_quantity", "reorder_level"])
@@ -657,7 +691,69 @@ def test_bronze_requires_one_ingestion_id(
     path.parent.mkdir(parents=True, exist_ok=True)
     customers.to_parquet(path, index=False)
 
-    with pytest.raises(ValueError, match="bronze must have one ingestion_id"):
+    expected_error = (
+        "missing columns: ingestion_id"
+        if invalid_metadata == "missing"
+        else "bronze must have one ingestion_id"
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        validate_bronze_quality(
+            LOAD_DATE, data_root=tmp_path, tables=("customers",)
+        )
+
+    assert not build_lake_path(
+        "silver", "postgres", "customers", LOAD_DATE, tmp_path
+    ).exists()
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert audit.loc[0, "table_name"] == "customers"
+    assert audit.loc[0, "status"] == "failed"
+
+
+@pytest.mark.parametrize("column", ["ingested_at", "source_system", "source_table"])
+def test_bronze_requires_all_provenance_columns(
+    tmp_path: Path, column: str
+) -> None:
+    customers = _valid_bronze_frames()["customers"].drop(columns=column)
+    path = build_lake_path("bronze", "postgres", "customers", LOAD_DATE, tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    customers.to_parquet(path, index=False)
+
+    with pytest.raises(ValueError, match=rf"missing columns: {column}"):
+        validate_bronze_quality(
+            LOAD_DATE, data_root=tmp_path, tables=("customers",)
+        )
+
+    assert not build_lake_path(
+        "silver", "postgres", "customers", LOAD_DATE, tmp_path
+    ).exists()
+    audit = pd.read_parquet(build_audit_path(tmp_path))
+    assert audit.loc[0, "table_name"] == "customers"
+    assert audit.loc[0, "status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "message"),
+    [
+        ("ingested_at", None, "must have valid ingested_at values"),
+        ("ingested_at", 123, "must have valid ingested_at values"),
+        ("source_system", "mysql", "source_system must be 'postgres'"),
+        ("source_table", "products", "source_table must be 'customers'"),
+    ],
+)
+def test_invalid_bronze_provenance_blocks_silver_publication(
+    tmp_path: Path, column: str, value: object, message: str
+) -> None:
+    customers = _valid_bronze_frames()["customers"]
+    if column == "ingested_at":
+        customers[column] = value
+    else:
+        customers[column] = customers[column].astype("object")
+        customers.loc[0, column] = value
+    path = build_lake_path("bronze", "postgres", "customers", LOAD_DATE, tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    customers.to_parquet(path, index=False)
+
+    with pytest.raises(ValueError, match=message):
         validate_bronze_quality(
             LOAD_DATE, data_root=tmp_path, tables=("customers",)
         )

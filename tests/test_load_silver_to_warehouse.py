@@ -283,6 +283,9 @@ def test_load_refuses_stale_silver_after_failed_quality_rerun(
         }
     )
     for table, frame in {"customers": customers, "products": products}.items():
+        frame["ingested_at"] = pd.Timestamp("2026-09-02T11:00:00Z")
+        frame["source_system"] = "postgres"
+        frame["source_table"] = table
         path = build_lake_path("bronze", "postgres", table, LOAD_DATE, tmp_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         frame.to_parquet(path, index=False)

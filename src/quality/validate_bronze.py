@@ -22,6 +22,7 @@ from src.quality.rules import (
     invalid_emails,
     invalid_foreign_keys,
     invalid_line_totals,
+    invalid_positive_integers,
     negative_values,
     non_positive_values,
     null_values,
@@ -40,6 +41,12 @@ LOGGER = logging.getLogger(__name__)
 SOURCE_SYSTEM = "postgres"
 SOURCE_TABLES = SOURCE_TABLE_LOAD_ORDER
 QUALITY_METADATA_COLUMNS = ("quality_run_id", "quality_checked_at")
+BRONZE_METADATA_COLUMNS = (
+    "ingestion_id",
+    "ingested_at",
+    "source_system",
+    "source_table",
+)
 DEFAULT_MAX_REJECTION_RATE = 0.10
 
 CUSTOMER_SEGMENTS = {"high_value", "frequent", "occasional", "inactive", "new"}
@@ -133,9 +140,41 @@ def _validate_max_rejection_rate(value: float) -> float:
 def _ensure_columns(dataframe: pd.DataFrame, table: str) -> None:
     if table not in REQUIRED_COLUMNS:
         raise ValueError(f"Unsupported source table: {table!r}")
-    missing = REQUIRED_COLUMNS[table].difference(dataframe.columns)
+    required = REQUIRED_COLUMNS[table].union(BRONZE_METADATA_COLUMNS)
+    missing = required.difference(dataframe.columns)
     if missing:
         raise ValueError(f"{table} is missing columns: {', '.join(sorted(missing))}")
+
+
+def _validate_bronze_metadata(
+    dataframe: pd.DataFrame, table: str
+) -> str | None:
+    """Validate technical provenance metadata before row-level checks."""
+    _ensure_columns(dataframe, table)
+    if dataframe.empty:
+        return None
+
+    ingestion_ids = dataframe["ingestion_id"]
+    valid_ingestion_ids = ingestion_ids.map(
+        lambda value: isinstance(value, str) and bool(value.strip())
+    )
+    if not valid_ingestion_ids.all() or ingestion_ids.nunique() != 1:
+        raise ValueError(f"{table} bronze must have one ingestion_id")
+
+    if not dataframe["source_system"].eq(SOURCE_SYSTEM).fillna(False).all():
+        raise ValueError(
+            f"{table} bronze source_system must be {SOURCE_SYSTEM!r}"
+        )
+    if not dataframe["source_table"].eq(table).fillna(False).all():
+        raise ValueError(f"{table} bronze source_table must be {table!r}")
+
+    ingested_at = dataframe["ingested_at"]
+    if ingested_at.isna().any() or invalid_datetimes(
+        dataframe, "ingested_at"
+    ).any():
+        raise ValueError(f"{table} bronze must have valid ingested_at values")
+
+    return str(ingestion_ids.iloc[0])
 
 
 def _require_reference(
@@ -290,7 +329,7 @@ def validate_table(
     quality_checked_at: pd.Timestamp | str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split one bronze DataFrame into valid and rejected records."""
-    _ensure_columns(dataframe, table)
+    _validate_bronze_metadata(dataframe, table)
     collisions = set(QUALITY_METADATA_COLUMNS).intersection(dataframe.columns)
     collisions.update({"rejection_reason"}.intersection(dataframe.columns))
     if collisions:
@@ -310,6 +349,10 @@ def validate_table(
 
     if table == "customers":
         reject(null_values(working, "customer_id"), "customer_id is null")
+        reject(
+            invalid_positive_integers(working, "customer_id"),
+            "customer_id must be a positive integer",
+        )
         reject(duplicate_values(working, "customer_id"), "customer_id is duplicated")
         for column in ("first_name", "last_name", "city"):
             reject(null_values(working, column), f"{column} is null")
@@ -331,6 +374,10 @@ def validate_table(
         )
     elif table == "products":
         reject(null_values(working, "product_id"), "product_id is null")
+        reject(
+            invalid_positive_integers(working, "product_id"),
+            "product_id must be a positive integer",
+        )
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(null_values(working, "sku"), "sku is null")
         reject(blank_values(working, "sku"), "sku is blank")
@@ -347,6 +394,10 @@ def validate_table(
         )
     elif table == "inventory":
         reject(null_values(working, "product_id"), "product_id is null")
+        reject(
+            invalid_positive_integers(working, "product_id"),
+            "product_id must be a positive integer",
+        )
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(negative_values(working, "stock_quantity"), "stock_quantity must be >= 0")
         reject(
@@ -370,8 +421,16 @@ def validate_table(
         )
     elif table == "orders":
         reject(null_values(working, "order_id"), "order_id is null")
+        reject(
+            invalid_positive_integers(working, "order_id"),
+            "order_id must be a positive integer",
+        )
         reject(duplicate_values(working, "order_id"), "order_id is duplicated")
         reject(null_values(working, "customer_id"), "customer_id is null")
+        reject(
+            invalid_positive_integers(working, "customer_id"),
+            "customer_id must be a positive integer",
+        )
         reject(null_values(working, "order_date"), "order_date is null")
         reject(
             invalid_datetimes(working, "order_date"),
@@ -391,11 +450,23 @@ def validate_table(
     elif table == "order_items":
         reject(null_values(working, "order_item_id"), "order_item_id is null")
         reject(
+            invalid_positive_integers(working, "order_item_id"),
+            "order_item_id must be a positive integer",
+        )
+        reject(
             duplicate_values(working, "order_item_id"),
             "order_item_id is duplicated",
         )
         reject(null_values(working, "order_id"), "order_id is null")
+        reject(
+            invalid_positive_integers(working, "order_id"),
+            "order_id must be a positive integer",
+        )
         reject(null_values(working, "product_id"), "product_id is null")
+        reject(
+            invalid_positive_integers(working, "product_id"),
+            "product_id must be a positive integer",
+        )
         reject(non_positive_values(working, "quantity"), "quantity must be > 0")
         reject(fractional_values(working, "quantity"), "quantity must be an integer")
         reject(non_positive_values(working, "unit_price"), "unit_price must be > 0")
@@ -412,8 +483,16 @@ def validate_table(
         )
     elif table == "payments":
         reject(null_values(working, "payment_id"), "payment_id is null")
+        reject(
+            invalid_positive_integers(working, "payment_id"),
+            "payment_id must be a positive integer",
+        )
         reject(duplicate_values(working, "payment_id"), "payment_id is duplicated")
         reject(null_values(working, "order_id"), "order_id is null")
+        reject(
+            invalid_positive_integers(working, "order_id"),
+            "order_id must be a positive integer",
+        )
         reject(duplicate_values(working, "order_id"), "order_id is duplicated")
         reject(
             values_not_in(working, "payment_method", PAYMENT_METHODS),
@@ -550,17 +629,9 @@ def validate_bronze_quality(
         ingestion_id: str | None = None
         for table in selected_tables:
             source = bronze_frames[table]
-            if source.empty:
+            table_ingestion_id = _validate_bronze_metadata(source, table)
+            if table_ingestion_id is None:
                 continue
-            if (
-                "ingestion_id" not in source.columns
-                or source["ingestion_id"].isna().any()
-                or source["ingestion_id"].nunique() != 1
-            ):
-                raise ValueError(f"{table} bronze must have one ingestion_id")
-            table_ingestion_id = source["ingestion_id"].iloc[0]
-            if not isinstance(table_ingestion_id, str) or not table_ingestion_id:
-                raise ValueError(f"{table} bronze must have one ingestion_id")
             if ingestion_id is None:
                 ingestion_id = table_ingestion_id
             elif table_ingestion_id != ingestion_id:

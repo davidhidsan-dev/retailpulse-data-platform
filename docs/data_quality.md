@@ -22,16 +22,30 @@ bronze
 
 Silver y rejected no modifican los archivos bronze originales.
 
+## ES — Contrato técnico de bronze
+
+Cada tabla bronze debe incluir `ingestion_id`, `ingested_at`, `source_system` y
+`source_table`. La validación exige un único `ingestion_id` de texto no vacío,
+un `ingested_at` válido, `source_system="postgres"` y un `source_table` que
+coincida con la tabla procesada. Las seis tablas no vacías de una partición
+deben compartir el mismo `ingestion_id`.
+
+La ausencia o incoherencia de estos metadatos bloquea toda la publicación de
+silver porque impide demostrar la procedencia del snapshot. En cambio, los
+errores propios de un registro se conservan en rejected: los IDs deben poder
+representarse como enteros positivos y las fechas no admiten números
+arbitrarios interpretados como timestamps.
+
 ## ES — Reglas por tabla
 
 | Tabla | Controles principales |
 |---|---|
-| `customers` | `customer_id` presente y único; nombre, apellido y ciudad presentes; email presente, válido y único; país no vacío; fecha válida; segmento sintético permitido. |
-| `products` | `product_id` y `sku` presentes y únicos; SKU, nombre y categoría no vacíos; fecha válida; precio positivo y finito. |
-| `inventory` | `product_id` presente y único; stock y reorder level enteros, no negativos y finitos; fecha de actualización válida. |
-| `orders` | `order_id` presente y único; cliente presente; fecha válida; país no vacío; estado permitido. |
-| `order_items` | `order_item_id` presente y único; pedido y producto presentes; cantidad entera positiva; precio positivo y finito; total de línea consistente y finito. |
-| `payments` | `payment_id` presente y único; un pago por pedido; método y estado permitidos; importe no negativo y finito; fecha válida; importe y estado coherentes con el pedido. |
+| `customers` | `customer_id` entero positivo, presente y único; nombre, apellido y ciudad presentes; email presente, válido y único; país no vacío; fecha válida; segmento sintético permitido. |
+| `products` | `product_id` entero positivo, presente y único; `sku` presente y único; SKU, nombre y categoría no vacíos; fecha válida; precio positivo y finito. |
+| `inventory` | `product_id` entero positivo, presente y único; stock y reorder level enteros, no negativos y finitos; fecha de actualización válida. |
+| `orders` | `order_id` y `customer_id` enteros positivos y presentes; `order_id` único; fecha válida; país no vacío; estado permitido. |
+| `order_items` | IDs enteros positivos y presentes; `order_item_id` único; cantidad entera positiva; precio positivo y finito; total de línea consistente y finito. |
+| `payments` | `payment_id` y `order_id` enteros positivos y presentes; `payment_id` único; un pago por pedido; método y estado permitidos; importe no negativo y finito; fecha válida; importe y estado coherentes con el pedido. |
 
 ## ES — Validaciones referenciales
 
@@ -109,7 +123,11 @@ Estados:
 
 ## ES — Publicación de silver
 
-Antes de validar filas, cada tabla bronze no vacía debe tener un solo `ingestion_id` no nulo, compartido por todas las tablas de la partición. Así, una ingesta interrumpida que mezcle snapshots de dos intentos bloquea la publicación de silver y queda registrada como `failed` en audit.
+Antes de validar filas se comprueba el contrato técnico completo de bronze. Una
+tabla con metadatos ausentes, nulos o incoherentes se marca como `failed` y no
+publica silver. Cada tabla no vacía debe tener un solo `ingestion_id`, compartido
+por todas las tablas de la partición. Así, una ingesta interrumpida que mezcle
+snapshots de dos intentos también bloquea la publicación.
 
 La validación se detiene si alguna tabla no produce filas válidas, incluso si bronze
 estaba vacía. Comprueba todas las tablas antes de publicar archivos silver y
@@ -201,16 +219,29 @@ bronze
 
 Silver and rejected do not modify the original bronze files.
 
+## EN — Bronze technical contract
+
+Every bronze table must include `ingestion_id`, `ingested_at`, `source_system`
+and `source_table`. Validation requires one non-empty string `ingestion_id`, a
+valid `ingested_at`, `source_system="postgres"`, and a `source_table` matching
+the table being processed. All non-empty tables in a partition must share the
+same `ingestion_id`.
+
+Missing or inconsistent metadata blocks the complete silver publication because
+the snapshot provenance cannot be trusted. Record-level errors are instead
+preserved in rejected: IDs must represent positive integers, and date fields do
+not accept arbitrary numbers interpreted as timestamps.
+
 ## EN — Rules by table
 
 | Table | Main checks |
 |---|---|
-| `customers` | `customer_id` present and unique; first name, last name and city present; email present, valid and unique; non-blank country; valid date; allowed synthetic segment. |
-| `products` | `product_id` and `sku` present and unique; non-blank SKU, name and category; valid date; positive finite price. |
-| `inventory` | `product_id` present and unique; finite, non-negative integer stock and reorder level; valid update date. |
-| `orders` | `order_id` present and unique; customer present; valid date; non-blank country; accepted status. |
-| `order_items` | `order_item_id` present and unique; order and product present; positive integer quantity; positive finite price; consistent finite line total. |
-| `payments` | `payment_id` present and unique; one payment per order; accepted method and status; finite non-negative amount; valid date; amount and status consistent with the order. |
+| `customers` | Positive integer, present and unique `customer_id`; first name, last name and city present; email present, valid and unique; non-blank country; valid date; allowed synthetic segment. |
+| `products` | Positive integer, present and unique `product_id`; present and unique `sku`; non-blank SKU, name and category; valid date; positive finite price. |
+| `inventory` | Positive integer, present and unique `product_id`; finite, non-negative integer stock and reorder level; valid update date. |
+| `orders` | Positive integer, present `order_id` and `customer_id`; unique `order_id`; valid date; non-blank country; accepted status. |
+| `order_items` | Positive integer, present IDs; unique `order_item_id`; positive integer quantity; positive finite price; consistent finite line total. |
+| `payments` | Positive integer, present `payment_id` and `order_id`; unique `payment_id`; one payment per order; accepted method and status; finite non-negative amount; valid date; amount and status consistent with the order. |
 
 ## EN — Referential checks
 
@@ -288,7 +319,11 @@ Statuses:
 
 ## EN — Silver publication
 
-Before validating rows, each non-empty bronze table must have one non-null `ingestion_id`, shared by all tables in the partition. This stops a partial ingestion from mixing snapshots from different attempts and records `failed` in audit before silver is published.
+Before validating rows, the complete bronze technical contract is checked. A
+table with missing, null or inconsistent metadata is marked as `failed` and does
+not publish silver. Every non-empty table must have one `ingestion_id`, shared by
+all tables in the partition. This also stops a partial ingestion from mixing
+snapshots from different attempts.
 
 Validation stops when any table has no valid rows, including an empty bronze
 input. It checks every table before publishing silver files and records `failed`
