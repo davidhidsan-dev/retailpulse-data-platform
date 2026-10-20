@@ -1,11 +1,15 @@
 .git
 .github
 .venv
+.venv-*
 venv
 **/__pycache__
 .pytest_cache
 .env
+.env.*
 data
+dbt/profiles.yml
+dbt/.user.yml
 dbt/logs
 dbt/target
 logs
