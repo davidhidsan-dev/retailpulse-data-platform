@@ -17,6 +17,19 @@ Fuente PostgreSQL:
 - `order_items`
 - `payments`
 
+## ES — Snapshot coherente de lectura
+
+Las seis tablas se leen con una única conexión PostgreSQL dentro de una
+transacción de solo lectura con aislamiento `REPEATABLE READ`. PostgreSQL fija
+una vista estable de la base de datos al comenzar las consultas, por lo que un
+cambio confirmado por otra conexión durante la extracción no aparece a mitad de
+la misma ingesta.
+
+Los DataFrames se extraen dentro de la transacción y los archivos raw/bronze se
+escriben después de cerrarla. Así se reduce el tiempo durante el que PostgreSQL
+debe conservar el snapshot. El `ingestion_id` compartido identifica por tanto
+tablas obtenidas desde la misma vista de la fuente.
+
 ## ES — Salidas
 
 Raw:
@@ -89,6 +102,7 @@ python -m src.ingest.postgres_to_lake --load-date YYYY-MM-DD
 - CSV se usa en raw por legibilidad.
 - Parquet se usa en bronze por eficiencia, compresión y preservación de tipos.
 - La extracción es full snapshot en v1.0.
+- Las tablas comparten una transacción `REPEATABLE READ` de solo lectura.
 - No se aplica limpieza fuerte en esta capa.
 - La calidad se aplica después, en la transición bronze → silver/rejected.
 
@@ -98,7 +112,8 @@ python -m src.ingest.postgres_to_lake --load-date YYYY-MM-DD
 - Reejecutar la misma `load_date` reemplaza archivos.
 - La escritura de las seis tablas no es una transacción atómica de filesystem.
 - El data lake es local, sin catálogo ni almacenamiento cloud.
-- No hay control de concurrencia.
+- No hay locking entre dos ejecuciones que escriban simultáneamente la misma
+  `load_date`.
 
 ---
 
@@ -118,6 +133,18 @@ PostgreSQL source:
 - `orders`
 - `order_items`
 - `payments`
+
+## EN — Consistent read snapshot
+
+All six tables are read through one PostgreSQL connection inside a read-only
+`REPEATABLE READ` transaction. PostgreSQL establishes a stable database view
+when queries begin, so a change committed by another connection during
+extraction cannot appear halfway through the same ingestion.
+
+DataFrames are extracted inside the transaction and raw/bronze files are
+written after it closes. This reduces how long PostgreSQL must retain the
+snapshot. The shared `ingestion_id` therefore identifies tables obtained from
+the same source view.
 
 ## EN — Outputs
 
@@ -191,6 +218,7 @@ python -m src.ingest.postgres_to_lake --load-date YYYY-MM-DD
 - CSV is used in raw for readability.
 - Parquet is used in bronze for efficiency, compression and type preservation.
 - Ingestion is a full snapshot in v1.0.
+- Tables share one read-only `REPEATABLE READ` transaction.
 - No heavy cleaning is applied in this layer.
 - Quality is applied later, in the bronze → silver/rejected transition.
 
@@ -200,4 +228,5 @@ python -m src.ingest.postgres_to_lake --load-date YYYY-MM-DD
 - Rerunning the same `load_date` replaces files.
 - Writing the six tables is not an atomic filesystem transaction.
 - The data lake is local, without catalog or cloud storage.
-- No concurrency control.
+- There is no locking between two runs writing the same `load_date`
+  simultaneously.

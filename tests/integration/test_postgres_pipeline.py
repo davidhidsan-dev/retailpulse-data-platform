@@ -7,8 +7,9 @@ from typing import Any
 
 import pandas as pd
 import pytest
+from sqlalchemy import text
 
-from src.ingest.postgres_to_lake import ingest_postgres_to_lake
+from src.ingest.postgres_to_lake import extract_table, ingest_postgres_to_lake
 from src.quality.validate_bronze import validate_bronze_quality
 from src.synthetic_data.generate_retail_data import generate_all_data
 from src.utils.database import (
@@ -63,6 +64,73 @@ def _relation_oid(engine: Any, relation: str) -> int:
                 f"SELECT '{relation}'::regclass::oid"
             ).scalar_one()
         )
+
+
+def test_ingestion_keeps_one_repeatable_read_snapshot(tmp_path: Path) -> None:
+    engine = get_engine()
+    frames = generate_all_data(
+        n_customers=20,
+        n_products=10,
+        n_orders=40,
+        seed=43,
+    )
+    target_order_id = int(frames["orders"].iloc[0]["order_id"])
+    original_country = str(frames["orders"].iloc[0]["country"])
+    concurrent_country = "Concurrent update"
+    update_committed = False
+
+    def read_with_concurrent_update(
+        connection: Any, table: str
+    ) -> pd.DataFrame:
+        nonlocal update_committed
+        dataframe = extract_table(connection, table)
+        if table == "customers":
+            with engine.begin() as writer:
+                writer.execute(
+                    text(
+                        "UPDATE orders SET country = :country "
+                        "WHERE order_id = :order_id"
+                    ),
+                    {
+                        "country": concurrent_country,
+                        "order_id": target_order_id,
+                    },
+                )
+            update_committed = True
+        return dataframe
+
+    try:
+        execute_sql_file(engine=engine)
+        load_dataframes_to_postgres(frames, engine=engine)
+
+        results = ingest_postgres_to_lake(
+            date(2026, 9, 3),
+            engine=engine,
+            data_root=tmp_path,
+            tables=("customers", "orders"),
+            table_reader=read_with_concurrent_update,
+        )
+
+        assert update_committed
+        raw_orders = pd.read_csv(results["orders"].raw_path)
+        bronze_orders = pd.read_parquet(results["orders"].bronze_path)
+        raw_country = raw_orders.loc[
+            raw_orders["order_id"].eq(target_order_id), "country"
+        ].item()
+        bronze_country = bronze_orders.loc[
+            bronze_orders["order_id"].eq(target_order_id), "country"
+        ].item()
+        assert raw_country == original_country
+        assert bronze_country == original_country
+
+        with engine.connect() as connection:
+            current_country = connection.execute(
+                text("SELECT country FROM orders WHERE order_id = :order_id"),
+                {"order_id": target_order_id},
+            ).scalar_one()
+        assert current_country == concurrent_country
+    finally:
+        engine.dispose()
 
 
 def test_pipeline_rerun_and_failed_refresh_are_transactional(

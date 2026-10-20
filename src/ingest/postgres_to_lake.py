@@ -8,11 +8,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 import pandas as pd
-from sqlalchemy import Engine
+from sqlalchemy import Connection, Engine
 
 from src.utils.database import SOURCE_TABLE_LOAD_ORDER, get_engine
 from src.utils.paths import DEFAULT_DATA_ROOT, build_lake_path, resolve_load_date
@@ -28,7 +27,7 @@ BRONZE_METADATA_COLUMNS = (
     "source_table",
 )
 
-TableReader = Callable[[Any, str], pd.DataFrame]
+TableReader = Callable[[Connection, str], pd.DataFrame]
 
 
 @dataclass(frozen=True)
@@ -43,11 +42,11 @@ class IngestionResult:
     ingested_at: pd.Timestamp
 
 
-def extract_table(engine: Engine, table: str) -> pd.DataFrame:
+def extract_table(connection: Connection, table: str) -> pd.DataFrame:
     """Read a complete approved source table from PostgreSQL."""
     if table not in SOURCE_TABLES:
         raise ValueError(f"Unsupported source table: {table!r}")
-    return pd.read_sql_table(table, con=engine)
+    return pd.read_sql_table(table, con=connection)
 
 
 def write_raw_table(
@@ -131,9 +130,19 @@ def ingest_postgres_to_lake(
     ingestion_id = str(uuid4())
     ingested_at = pd.Timestamp.now(tz="UTC")
     results: dict[str, IngestionResult] = {}
+    source_frames: dict[str, pd.DataFrame] = {}
+
+    with database_engine.connect() as raw_connection:
+        connection = raw_connection.execution_options(
+            isolation_level="REPEATABLE READ"
+        )
+        with connection.begin():
+            connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+            for table in selected_tables:
+                source_frames[table] = reader(connection, table)
 
     for table in selected_tables:
-        dataframe = reader(database_engine, table)
+        dataframe = source_frames[table]
         raw_path = write_raw_table(
             dataframe, table, resolved_date, data_root
         )

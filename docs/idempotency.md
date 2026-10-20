@@ -37,6 +37,10 @@ data/bronze/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 
 Para una misma tabla y `load_date`, el archivo se reemplaza.
 
+Todas las tablas de una ejecución se extraen desde una única transacción
+PostgreSQL `REPEATABLE READ` de solo lectura. Los cambios concurrentes en la
+fuente no mezclan estados distintos dentro del mismo `ingestion_id`.
+
 Objetivo:
 
 - evitar múltiples copias del mismo snapshot lógico.
@@ -46,6 +50,7 @@ Limitación:
 
 - la escritura de todas las tablas no es transacción atómica de filesystem.
 - no hay versionado histórico por reintento dentro de una misma `load_date`.
+- no hay locking entre ejecuciones simultáneas sobre la misma `load_date`.
 
 ## ES — Silver y rejected
 
@@ -173,6 +178,10 @@ data/bronze/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 
 For the same table and `load_date`, the file is replaced.
 
+All tables in one run are extracted through a single read-only PostgreSQL
+`REPEATABLE READ` transaction. Concurrent source changes cannot mix different
+states under the same `ingestion_id`.
+
 Goal:
 
 - avoid multiple copies of the same logical snapshot.
@@ -182,6 +191,7 @@ Limitation:
 
 - writing all tables is not an atomic filesystem transaction.
 - there is no historical versioning by retry inside the same `load_date`.
+- there is no locking between simultaneous runs for the same `load_date`.
 
 ## EN — Silver and rejected
 

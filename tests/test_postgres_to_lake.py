@@ -2,6 +2,7 @@
 
 from datetime import date
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pandas as pd
 
@@ -112,22 +113,46 @@ def test_add_bronze_metadata_does_not_modify_source_dataframe() -> None:
     ]
 
 
-def test_ingestion_id_is_shared_by_all_tables_in_one_run(tmp_path: Path) -> None:
+def test_ingestion_uses_one_repeatable_read_connection_and_shared_metadata(
+    tmp_path: Path,
+) -> None:
     source_frames = {
         "customers": pd.DataFrame({"customer_id": [1, 2]}),
         "orders": pd.DataFrame({"order_id": [10], "customer_id": [1]}),
     }
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    connection.execution_options.return_value = connection
+    transaction = MagicMock()
+    transaction.__enter__.return_value = transaction
+    connection.begin.return_value = transaction
+    engine = MagicMock()
+    engine.connect.return_value = connection
+    reader_connections: list[object] = []
 
-    def read_in_memory_table(_engine: object, table: str) -> pd.DataFrame:
+    def read_in_memory_table(
+        received_connection: object, table: str
+    ) -> pd.DataFrame:
+        reader_connections.append(received_connection)
         return source_frames[table].copy()
 
     results = ingest_postgres_to_lake(
         LOAD_DATE,
-        engine=object(),
+        engine=engine,
         data_root=tmp_path,
         tables=("customers", "orders"),
         table_reader=read_in_memory_table,
     )
+
+    engine.connect.assert_called_once_with()
+    connection.execution_options.assert_called_once_with(
+        isolation_level="REPEATABLE READ"
+    )
+    connection.begin.assert_called_once_with()
+    connection.exec_driver_sql.assert_called_once_with(
+        "SET TRANSACTION READ ONLY"
+    )
+    assert reader_connections == [connection, connection]
 
     ingestion_ids = {result.ingestion_id for result in results.values()}
     ingested_at_values = {result.ingested_at for result in results.values()}
