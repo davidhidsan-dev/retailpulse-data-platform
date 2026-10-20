@@ -45,7 +45,7 @@ Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 
 `requirements.txt` declara las dependencias directas y aplica automáticamente `constraints.txt`, que fija la resolución completa probada con Python 3.11. Las actualizaciones de dependencias deben regenerar las restricciones y superar las pruebas antes de publicarse.
 
-Python y Compose leen `.env`. Los comandos dbt del Makefile leen variables del proceso o los valores de fallback del perfil, pero no cargan `.env`. Si personalizas credenciales, puerto o esquema, exporta las mismas variables `POSTGRES_*` y `DBT_SCHEMA` en la terminal o adapta el perfil local. Las variables ya exportadas prevalecen sobre `.env`.
+Python, Compose y la versión fijada de dbt leen `.env`. Los comandos dbt del Makefile resuelven `POSTGRES_*` y `DBT_SCHEMA` mediante `env_var()` en el perfil; si una variable no está definida, utilizan el valor de fallback indicado allí. Las variables ya exportadas en la terminal prevalecen sobre `.env`.
 
 ## ES — Levantar PostgreSQL
 
@@ -339,7 +339,7 @@ Copy-Item dbt/profiles.yml.example dbt/profiles.yml
 
 `requirements.txt` declares direct dependencies and automatically applies `constraints.txt`, which pins the complete resolution tested with Python 3.11. Dependency updates must regenerate the constraints and pass the tests before publication.
 
-Python and Compose read `.env`. The Makefile dbt targets read process environment variables or profile fallbacks, but do not load `.env`. For custom credentials, ports or schemas, export matching `POSTGRES_*` and `DBT_SCHEMA` variables in the terminal or adjust the local profile. Existing exported variables take precedence over `.env`.
+Python, Compose and the pinned dbt version read `.env`. The Makefile dbt targets resolve `POSTGRES_*` and `DBT_SCHEMA` through `env_var()` in the profile; when a variable is undefined, they use the fallback declared there. Variables already exported in the shell take precedence over `.env`.
 
 ## EN — Start PostgreSQL
 

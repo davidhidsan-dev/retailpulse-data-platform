@@ -119,6 +119,7 @@ data/audit/quality_runs.parquet
 | `input_rows` | Filas de entrada. |
 | `valid_rows` | Filas válidas. |
 | `rejected_rows` | Filas rechazadas. |
+| `rejection_rate` | Proporción de filas rechazadas sobre las filas de entrada, entre `0` y `1`. |
 | `status` | `passed`, `warning` o `failed`. |
 
 ## ES — Marts dbt
@@ -256,6 +257,7 @@ data/audit/quality_runs.parquet
 | `input_rows` | Input rows. |
 | `valid_rows` | Valid rows. |
 | `rejected_rows` | Rejected rows. |
+| `rejection_rate` | Proportion of rejected rows over input rows, between `0` and `1`. |
 | `status` | `passed`, `warning` or `failed`. |
 
 ## EN — dbt marts
