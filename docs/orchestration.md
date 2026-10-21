@@ -96,6 +96,8 @@ Motivos:
 - `make airflow-up` construye y levanta PostgreSQL y Airflow.
 - las dependencias de Python de Airflow permanecen aisladas en su imagen.
 
+La imagen mantiene dos entornos Python separados. El entorno base ejecuta Airflow y aplica las actualizaciones de seguridad fijadas en `requirements-airflow-base.txt`; el entorno `/home/airflow/.retailpulse-venv` contiene las dependencias del pipeline. CI audita ambos entornos de forma independiente.
+
 ## ES — Ejecución sin Airflow
 
 El flujo manual sigue disponible:
@@ -218,6 +220,8 @@ Reasons:
 - `make up` starts only PostgreSQL for the manual flow.
 - `make airflow-up` builds and starts PostgreSQL and Airflow.
 - Airflow's Python dependencies remain isolated in its image.
+
+The image keeps two separate Python environments. The base environment runs Airflow and applies the security updates pinned in `requirements-airflow-base.txt`; `/home/airflow/.retailpulse-venv` contains the pipeline dependencies. CI audits both environments independently.
 
 ## EN — Execution without Airflow
 

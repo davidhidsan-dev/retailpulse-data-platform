@@ -27,6 +27,28 @@ jobs:
       - name: Audit locked Python dependencies
         run: python -m pip_audit -r requirements.txt
 
+  airflow-image-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Airflow image
+        run: docker build --file Dockerfile.airflow --tag retailpulse-airflow:ci .
+
+      - name: Audit Airflow base environment
+        run: |
+          docker run --rm --entrypoint bash retailpulse-airflow:ci -lc '
+            set -e
+            airflow_site_packages="$(python -c "import site; print(site.getusersitepackages())")"
+            python -m venv /tmp/airflow-audit
+            /tmp/airflow-audit/bin/python -m pip install --quiet pip-audit==2.10.1
+            /tmp/airflow-audit/bin/python -m pip_audit \
+              --path "${airflow_site_packages}"
+          '
+
   test:
     runs-on: ubuntu-latest
 

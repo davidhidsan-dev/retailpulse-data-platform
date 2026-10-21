@@ -2,6 +2,15 @@ ARG AIRFLOW_VERSION=3.3.2
 ARG PYTHON_VERSION=3.11
 FROM apache/airflow:${AIRFLOW_VERSION}-python${PYTHON_VERSION}
 
+ARG AIRFLOW_VERSION
+
+COPY requirements-airflow-base.txt /tmp/retailpulse/
+
+RUN python -m pip install --no-cache-dir \
+        "apache-airflow==${AIRFLOW_VERSION}" \
+        -r /tmp/retailpulse/requirements-airflow-base.txt \
+    && python -m pip check
+
 COPY constraints.txt requirements.txt requirements-airflow.txt /tmp/retailpulse/
 
 RUN python -m venv /home/airflow/.retailpulse-venv \
