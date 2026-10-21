@@ -55,6 +55,16 @@ Airflow does not transform data. It only coordinates existing Python and dbt com
 
 More detail: [`docs/architecture.md`](docs/architecture.md).
 
+## Visual evidence
+
+### Airflow orchestration
+
+![RetailPulse DAG in Airflow](dashboards/screenshots/airflow_dag_en.png)
+
+### dbt model lineage
+
+![RetailPulse lineage in dbt](dashboards/screenshots/dbt_lineage.png)
+
 ## Stack
 
 - Python

@@ -55,6 +55,16 @@ Airflow no transforma datos. Solo coordina comandos Python y dbt ya existentes.
 
 Más detalle: [`docs/architecture.md`](docs/architecture.md).
 
+## Evidencia visual
+
+### Orquestación en Airflow
+
+![DAG de RetailPulse en Airflow](dashboards/screenshots/airflow_dag.png)
+
+### Linaje de modelos dbt
+
+![Linaje de RetailPulse en dbt](dashboards/screenshots/dbt_lineage.png)
+
 ## Stack
 
 - Python
