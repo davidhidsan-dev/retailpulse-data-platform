@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from numbers import Number
+from numbers import Integral, Number
 
 import numpy as np
 import pandas as pd
 
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+POSTGRES_INTEGER_MAX = 2_147_483_647
 
 
 def null_values(dataframe: pd.DataFrame, column: str) -> pd.Series:
@@ -47,17 +48,17 @@ def invalid_datetimes(dataframe: pd.DataFrame, column: str) -> pd.Series:
 def invalid_positive_integers(
     dataframe: pd.DataFrame, column: str
 ) -> pd.Series:
-    """Return a mask for non-null values not representing positive integers."""
-    original = dataframe[column]
-    values = pd.to_numeric(original, errors="coerce")
-    boolean_values = original.map(lambda value: isinstance(value, (bool, np.bool_)))
-    return original.notna() & (
-        boolean_values
-        | values.isna()
-        | ~np.isfinite(values)
-        | values.le(0)
-        | values.mod(1).ne(0)
-    )
+    """Return a mask for values outside the positive PostgreSQL INTEGER domain."""
+    def is_invalid(value: object) -> bool:
+        if pd.isna(value):
+            return False
+        return not (
+            isinstance(value, Integral)
+            and not isinstance(value, (bool, np.bool_))
+            and 1 <= int(value) <= POSTGRES_INTEGER_MAX
+        )
+
+    return dataframe[column].astype(object).map(is_invalid)
 
 
 def fractional_values(dataframe: pd.DataFrame, column: str) -> pd.Series:

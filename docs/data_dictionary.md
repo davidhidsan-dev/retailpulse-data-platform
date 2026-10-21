@@ -134,7 +134,7 @@ data/audit/quality_runs.parquet
 
 ## ES — Nota sobre tipos
 
-Los modelos `stg_*` de dbt aplican casts explícitos para definir el contrato analítico. Los tipos concretos pueden depender de PostgreSQL y dbt, pero el objetivo es mantener IDs numéricos, importes numéricos, timestamps tipados y campos descriptivos como texto.
+Los modelos `stg_*` de dbt aplican casts explícitos para definir el contrato analítico. Los IDs técnicos son enteros positivos compatibles con PostgreSQL `INTEGER`; los importes son numéricos, los timestamps están tipados y los campos descriptivos son texto.
 
 ---
 
@@ -272,4 +272,4 @@ data/audit/quality_runs.parquet
 
 ## EN — Type note
 
-dbt `stg_*` models apply explicit casts to define the analytical contract. Concrete types depend on PostgreSQL and dbt, but the goal is to keep numeric IDs, numeric amounts, typed timestamps and descriptive fields as text.
+dbt `stg_*` models apply explicit casts to define the analytical contract. Technical IDs are positive PostgreSQL-compatible integers; amounts are numeric, timestamps are typed and descriptive fields are text.

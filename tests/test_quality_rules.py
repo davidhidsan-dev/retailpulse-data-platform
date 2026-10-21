@@ -3,6 +3,7 @@
 import pandas as pd
 
 from src.quality.rules import (
+    POSTGRES_INTEGER_MAX,
     blank_values,
     duplicate_values,
     fractional_values,
@@ -95,6 +96,10 @@ def test_invalid_positive_integers_detects_type_and_range_violations() -> None:
                 1,
                 2.0,
                 "3",
+                "01",
+                "1.0",
+                POSTGRES_INTEGER_MAX,
+                POSTGRES_INTEGER_MAX + 1,
                 0,
                 -1,
                 1.5,
@@ -108,8 +113,12 @@ def test_invalid_positive_integers_detects_type_and_range_violations() -> None:
 
     assert invalid_positive_integers(dataframe, "identifier").tolist() == [
         False,
+        True,
+        True,
+        True,
+        True,
         False,
-        False,
+        True,
         True,
         True,
         True,

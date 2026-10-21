@@ -60,6 +60,14 @@ PAYMENT_STATUS_BY_ORDER = {
     "pending": "pending",
 }
 ORDER_COMPLETENESS_TABLES = {"orders", "order_items", "payments"}
+ID_COLUMNS_BY_TABLE = {
+    "customers": ("customer_id",),
+    "products": ("product_id",),
+    "inventory": ("product_id",),
+    "orders": ("order_id", "customer_id"),
+    "order_items": ("order_item_id", "order_id", "product_id"),
+    "payments": ("payment_id", "order_id"),
+}
 
 REQUIRED_COLUMNS = {
     "customers": {
@@ -347,12 +355,14 @@ def validate_table(
             if failed:
                 reasons[position].append(reason)
 
-    if table == "customers":
-        reject(null_values(working, "customer_id"), "customer_id is null")
+    for id_column in ID_COLUMNS_BY_TABLE[table]:
+        reject(null_values(working, id_column), f"{id_column} is null")
         reject(
-            invalid_positive_integers(working, "customer_id"),
-            "customer_id must be a positive integer",
+            invalid_positive_integers(working, id_column),
+            f"{id_column} must be a positive PostgreSQL INTEGER",
         )
+
+    if table == "customers":
         reject(duplicate_values(working, "customer_id"), "customer_id is duplicated")
         for column in ("first_name", "last_name", "city"):
             reject(null_values(working, column), f"{column} is null")
@@ -373,11 +383,6 @@ def validate_table(
             "synthetic_behavior_segment is not allowed",
         )
     elif table == "products":
-        reject(null_values(working, "product_id"), "product_id is null")
-        reject(
-            invalid_positive_integers(working, "product_id"),
-            "product_id must be a positive integer",
-        )
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(null_values(working, "sku"), "sku is null")
         reject(blank_values(working, "sku"), "sku is blank")
@@ -393,11 +398,6 @@ def validate_table(
             "created_at is not a valid datetime",
         )
     elif table == "inventory":
-        reject(null_values(working, "product_id"), "product_id is null")
-        reject(
-            invalid_positive_integers(working, "product_id"),
-            "product_id must be a positive integer",
-        )
         reject(duplicate_values(working, "product_id"), "product_id is duplicated")
         reject(negative_values(working, "stock_quantity"), "stock_quantity must be >= 0")
         reject(
@@ -420,17 +420,7 @@ def validate_table(
             "product_id does not exist in products",
         )
     elif table == "orders":
-        reject(null_values(working, "order_id"), "order_id is null")
-        reject(
-            invalid_positive_integers(working, "order_id"),
-            "order_id must be a positive integer",
-        )
         reject(duplicate_values(working, "order_id"), "order_id is duplicated")
-        reject(null_values(working, "customer_id"), "customer_id is null")
-        reject(
-            invalid_positive_integers(working, "customer_id"),
-            "customer_id must be a positive integer",
-        )
         reject(null_values(working, "order_date"), "order_date is null")
         reject(
             invalid_datetimes(working, "order_date"),
@@ -448,24 +438,9 @@ def validate_table(
             "customer_id does not exist in customers",
         )
     elif table == "order_items":
-        reject(null_values(working, "order_item_id"), "order_item_id is null")
-        reject(
-            invalid_positive_integers(working, "order_item_id"),
-            "order_item_id must be a positive integer",
-        )
         reject(
             duplicate_values(working, "order_item_id"),
             "order_item_id is duplicated",
-        )
-        reject(null_values(working, "order_id"), "order_id is null")
-        reject(
-            invalid_positive_integers(working, "order_id"),
-            "order_id must be a positive integer",
-        )
-        reject(null_values(working, "product_id"), "product_id is null")
-        reject(
-            invalid_positive_integers(working, "product_id"),
-            "product_id must be a positive integer",
         )
         reject(non_positive_values(working, "quantity"), "quantity must be > 0")
         reject(fractional_values(working, "quantity"), "quantity must be an integer")
@@ -482,17 +457,7 @@ def validate_table(
             "product_id does not exist in products",
         )
     elif table == "payments":
-        reject(null_values(working, "payment_id"), "payment_id is null")
-        reject(
-            invalid_positive_integers(working, "payment_id"),
-            "payment_id must be a positive integer",
-        )
         reject(duplicate_values(working, "payment_id"), "payment_id is duplicated")
-        reject(null_values(working, "order_id"), "order_id is null")
-        reject(
-            invalid_positive_integers(working, "order_id"),
-            "order_id must be a positive integer",
-        )
         reject(duplicate_values(working, "order_id"), "order_id is duplicated")
         reject(
             values_not_in(working, "payment_method", PAYMENT_METHODS),
@@ -526,6 +491,8 @@ def validate_table(
 
     valid = working.loc[~rejected_mask].copy()
     rejected = working.loc[rejected_mask].copy()
+    for column in ID_COLUMNS_BY_TABLE[table]:
+        valid[column] = pd.to_numeric(valid[column], errors="raise").astype("int64")
     valid["quality_run_id"] = run_id
     valid["quality_checked_at"] = checked_at
     rejected["quality_run_id"] = run_id

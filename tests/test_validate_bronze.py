@@ -253,7 +253,41 @@ def test_id_contract_rejects_values_not_representing_positive_integers(
     _, rejected = validate_table(table, dataframe, references)
 
     invalid_row = rejected.loc[rejected[column].eq("not-an-integer")].iloc[0]
-    assert f"{column} must be a positive integer" in invalid_row["rejection_reason"]
+    assert f"{column} must be a positive PostgreSQL INTEGER" in invalid_row[
+        "rejection_reason"
+    ]
+
+
+def test_id_contract_requires_integer_type_and_postgres_range() -> None:
+    customers = _valid_bronze_frames()["customers"].iloc[[0]].copy()
+    customers = pd.concat([customers] * 4, ignore_index=True)
+    customers["customer_id"] = [1, "01", 2.0, 2_147_483_648]
+    customers["email"] = [
+        "one@example.com",
+        "zero-one@example.com",
+        "two@example.com",
+        "overflow@example.com",
+    ]
+
+    valid, rejected = validate_table("customers", customers)
+
+    assert valid["customer_id"].tolist() == [1]
+    assert pd.api.types.is_integer_dtype(valid["customer_id"])
+    assert len(rejected) == 3
+    assert rejected["rejection_reason"].str.contains(
+        "customer_id must be a positive PostgreSQL INTEGER"
+    ).all()
+
+
+def test_id_contract_preserves_nullable_integer_values() -> None:
+    customers = _valid_bronze_frames()["customers"]
+    customers["customer_id"] = pd.Series([1, pd.NA], dtype="Int64")
+
+    valid, rejected = validate_table("customers", customers)
+
+    assert valid["customer_id"].tolist() == [1]
+    assert rejected["customer_id"].isna().all()
+    assert rejected["rejection_reason"].str.contains("customer_id is null").all()
 
 
 @pytest.mark.parametrize("column", ["stock_quantity", "reorder_level"])

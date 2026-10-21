@@ -36,6 +36,10 @@ errores propios de un registro se conservan en rejected: los IDs deben poder
 representarse como enteros positivos y las fechas no admiten números
 arbitrarios interpretados como timestamps.
 
+Los IDs técnicos deben ser enteros reales entre `1` y `2147483647`. Valores
+textuales como `"01"` o `"1.0"` se rechazan; los códigos que necesitan conservar
+formato se almacenan como texto, como ocurre con `sku`.
+
 ## ES — Reglas por tabla
 
 | Tabla | Controles principales |
@@ -231,6 +235,10 @@ Missing or inconsistent metadata blocks the complete silver publication because
 the snapshot provenance cannot be trusted. Record-level errors are instead
 preserved in rejected: IDs must represent positive integers, and date fields do
 not accept arbitrary numbers interpreted as timestamps.
+
+Technical IDs must be actual integers between `1` and `2147483647`. Text values
+such as `"01"` or `"1.0"` are rejected; codes that must preserve formatting are
+stored as text, as with `sku`.
 
 ## EN — Rules by table
 
