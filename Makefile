@@ -1,7 +1,9 @@
 DEMO_LOAD_DATE ?= 2099-01-01
+EVENT_COUNT ?= 20
+EVENT_SEED ?= 42
 LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs produce-events consume-events
 
 up:
 	docker compose up -d postgres
@@ -57,6 +59,21 @@ airflow-logs:
 
 airflow-ps:
 	docker compose ps
+
+kafka-up:
+	docker compose up -d kafka
+
+kafka-down:
+	docker compose stop kafka
+
+kafka-logs:
+	docker compose logs -f kafka
+
+produce-events:
+	python -m src.streaming.produce_web_events --count $(EVENT_COUNT) --seed $(EVENT_SEED)
+
+consume-events:
+	python -m src.streaming.consume_web_events --count $(EVENT_COUNT)
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"

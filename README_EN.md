@@ -4,9 +4,9 @@
 
 [Versión en español](README.md)
 
-Data Engineering portfolio project that simulates an end-to-end batch e-commerce data platform: PostgreSQL operational source, local data lake ingestion, quality validation, rejected records, warehouse loading, dbt analytical modeling and optional local Airflow orchestration.
+Data Engineering portfolio project with an end-to-end e-commerce batch pipeline and a first Kafka-based web-event vertical.
 
-The focus is on building a reproducible, traceable and technically solid batch workflow in a local environment, rather than replicating a production-scale platform.
+The focus is on building reproducible, traceable and technically solid local workflows rather than replicating a production-scale platform.
 
 ## Problem simulated
 
@@ -16,7 +16,7 @@ RetailPulse reproduces that process with controlled relational synthetic data.
 
 ## Current status
 
-Technical v1.0.
+Stable v1.0 batch pipeline. Streaming v2.0 in development.
 
 Included:
 
@@ -30,25 +30,17 @@ Included:
 - dbt staging and mart models.
 - dbt tests for keys, accepted values and relationships.
 - optional local Airflow orchestration.
+- Python producer and consumer for web events through a local Kafka broker.
+- raw JSONL event storage with topic, partition, offset, timestamp and key.
 - unit tests and a reduced real-PostgreSQL and dbt run in GitHub Actions.
 
-v1.0 covers the full pipeline up to the dbt marts and includes local orchestration with Airflow. The dashboard and other extensions are left for later phases.
+v1.0 covers the complete batch pipeline up to the dbt marts. v2.0 starts with an independent Kafka flow that currently ends at raw storage.
 
 ## Architecture
 
 ```text
-PostgreSQL source
-    ↓
-Python ingestion
-    ├── raw CSV
-    └── bronze Parquet + ingestion metadata
-            ↓
-        Python quality validation
-            ├── silver Parquet → warehouse_source PostgreSQL → dbt staging → dbt marts
-            ├── rejected Parquet
-            └── audit quality_runs.parquet
-
-Airflow orchestrates the end-to-end batch flow above.
+Batch:     PostgreSQL → Python → raw/bronze → quality → silver → warehouse → dbt
+Streaming: web events → Kafka → Python consumer → raw JSONL
 ```
 
 Airflow does not transform data. It only coordinates existing Python and dbt commands.
@@ -74,6 +66,7 @@ More detail: [`docs/architecture.md`](docs/architecture.md).
 - Parquet / pyarrow
 - dbt-postgres
 - local Apache Airflow
+- local Apache Kafka
 - Docker Compose
 - pytest
 - GitHub Actions
@@ -118,6 +111,22 @@ make load-warehouse LOAD_DATE=YYYY-MM-DD
 make dbt-run
 make dbt-test
 ```
+
+Run a finite streaming demo:
+
+The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`.
+
+```bash
+make up
+make init-db
+make seed-db
+make kafka-up
+make produce-events EVENT_COUNT=20 EVENT_SEED=42
+make consume-events EVENT_COUNT=20
+make kafka-down
+```
+
+More detail: [`docs/streaming.md`](docs/streaming.md).
 
 All three targets accept `LOAD_DATE`; if omitted, they use the current UTC date. The Python modules also accept `--load-date`.
 
@@ -228,12 +237,13 @@ More detail: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 ├── sql/                          # Source and warehouse schema SQL
 ├── src/
 │   ├── ingest/                   # PostgreSQL → lake ingestion
+│   ├── streaming/                # Kafka event model, producer and consumer
 │   ├── quality/                  # Quality, rejected records and demo
 │   ├── synthetic_data/           # Synthetic generation
 │   ├── utils/                    # Config, paths and database helpers
 │   └── warehouse/                # Silver → warehouse loading
 ├── tests/                        # Unit and integration tests
-├── docker-compose.yml            # PostgreSQL and Airflow
+├── docker-compose.yml            # Selectable PostgreSQL, Airflow and Kafka services
 ├── Dockerfile.airflow
 ├── constraints.txt               # Exact resolution tested on Python 3.11
 ├── Makefile
@@ -251,6 +261,7 @@ More detail: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 - [`docs/warehouse_model.md`](docs/warehouse_model.md)
 - [`docs/limitations.md`](docs/limitations.md)
 - [`docs/orchestration.md`](docs/orchestration.md)
+- [`docs/streaming.md`](docs/streaming.md)
 - [`docs/runbook.md`](docs/runbook.md)
 - [`docs/technical_decisions.md`](docs/technical_decisions.md)
 
@@ -263,13 +274,14 @@ The pipeline architecture, project scope, result validation, final decisions, an
 ## Limitations
 
 - The data is synthetic.
-- The pipeline is batch and local.
+- The batch pipeline and first streaming vertical are local.
+- Kafka uses one broker and does not provide high availability.
 - The warehouse load uses full refresh / replace.
 - There is no incremental loading.
 - There is no dashboard in v1.0.
 - Airflow is local/dev only.
 - There are no SCDs or semantic metrics layer.
-- CI runs a reduced pipeline through dbt with real PostgreSQL; Airflow is validated separately in local development.
+- CI tests streaming code without a broker and runs a reduced batch pipeline with real PostgreSQL and dbt; Kafka and Airflow are validated separately in local development.
 - Rejected records are kept in the lake, not analytical marts.
 
 ## Reasonable next steps

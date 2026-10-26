@@ -25,6 +25,7 @@ isodate==0.7.2
 Jinja2==3.1.6
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+kafka-python==3.0.11
 leather==0.4.1
 MarkupSafe==3.0.3
 mashumaro==3.17

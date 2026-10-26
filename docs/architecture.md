@@ -2,7 +2,7 @@
 
 ## ES — Objetivo de la arquitectura
 
-RetailPulse implementa una plataforma batch local para un e-commerce sintético. La arquitectura separa fuente operacional, ingesta, almacenamiento por capas, calidad, carga a warehouse, modelado analítico y orquestación.
+RetailPulse mantiene el pipeline batch local cerrado en v1.0 y añade en v2.0 un segundo flujo local para eventos web. Ambos flujos comparten el data lake raw, pero Kafka no sustituye PostgreSQL ni cambia el recorrido batch.
 
 El diseño prioriza la separación de responsabilidades y la trazabilidad entre capas, manteniendo una función clara para cada componente.
 
@@ -22,6 +22,11 @@ flowchart TD
     staging[dbt staging views]
     marts[dbt marts]
     airflow[Airflow DAG]
+    web_events[synthetic web events]
+    producer[Python producer]
+    kafka[(Kafka broker)]
+    consumer[Python consumer]
+    event_raw[raw JSONL]
 
     source --> ingestion
     ingestion --> raw
@@ -38,6 +43,10 @@ flowchart TD
     airflow -. orchestrates .-> quality
     airflow -. orchestrates .-> warehouse
     airflow -. orchestrates .-> marts
+    web_events --> producer
+    producer --> kafka
+    kafka --> consumer
+    consumer --> event_raw
 ```
 
 Versión textual:
@@ -51,6 +60,7 @@ PostgreSQL source -> Python ingestion
                          └── audit
 
 Airflow: orchestration of existing steps
+Streaming: web events -> Kafka -> Python consumer -> raw JSONL
 Dashboard: outside v1.0
 ```
 
@@ -150,6 +160,12 @@ Los marts iniciales son:
 
 Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica de transformación ni reglas de negocio.
 
+### 13. Streaming Kafka v2.0
+
+Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Un consumer finito conserva el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL.
+
+Esta primera vertical usa un único broker KRaft y termina en raw. No está orquestada por Airflow ni conectada al warehouse o a dbt.
+
 ## ES — Por qué rejected no entra al warehouse analítico
 
 El warehouse debe modelar datos aprobados. Los registros rechazados pueden contener emails inválidos, precios negativos, estados desconocidos, claves foráneas rotas o totales inconsistentes.
@@ -169,7 +185,7 @@ La v1.0 no incluye dashboard, cargas incrementales ni despliegue productivo. Otr
 
 ## EN — Architecture objective
 
-RetailPulse implements a local batch platform for a synthetic e-commerce business. The architecture separates operational source, ingestion, layered storage, quality, warehouse loading, analytical modeling and orchestration.
+RetailPulse keeps the local v1.0 batch pipeline stable and adds a second local web-event flow in v2.0. Both flows use local raw storage, but Kafka does not replace PostgreSQL or change the batch path.
 
 The design prioritizes separation of responsibilities and traceability across layers, keeping a clear purpose for each component.
 
@@ -189,6 +205,11 @@ flowchart TD
     staging[dbt staging views]
     marts[dbt marts]
     airflow[Airflow DAG]
+    web_events[synthetic web events]
+    producer[Python producer]
+    kafka[(Kafka broker)]
+    consumer[Python consumer]
+    event_raw[raw JSONL]
 
     source --> ingestion
     ingestion --> raw
@@ -205,6 +226,10 @@ flowchart TD
     airflow -. orchestrates .-> quality
     airflow -. orchestrates .-> warehouse
     airflow -. orchestrates .-> marts
+    web_events --> producer
+    producer --> kafka
+    kafka --> consumer
+    consumer --> event_raw
 ```
 
 Text version:
@@ -218,6 +243,7 @@ PostgreSQL source -> Python ingestion
                          └── audit
 
 Airflow: orchestration of existing steps
+Streaming: web events -> Kafka -> Python consumer -> raw JSONL
 Dashboard: outside v1.0
 ```
 
@@ -316,6 +342,12 @@ Initial marts:
 ### 12. Airflow
 
 Airflow orchestrates the full flow with a local manual DAG. It does not contain transformation logic or business rules.
+
+### 13. Kafka streaming v2.0
+
+A Python producer uses existing PostgreSQL customers and products to publish synthetic web events to `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. A finite consumer preserves the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL.
+
+This first vertical uses one KRaft broker and ends at raw storage. Airflow does not orchestrate it, and it is not connected to the warehouse or dbt.
 
 ## EN — Why rejected does not enter the analytical warehouse
 
