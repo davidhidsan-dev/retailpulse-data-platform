@@ -116,10 +116,12 @@ def test_kafka_settings_include_positive_partition_count(monkeypatch) -> None:
     monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
     monkeypatch.setenv("KAFKA_TOPIC_WEB_EVENTS", "retailpulse.web_events")
     monkeypatch.setenv("KAFKA_TOPIC_PARTITIONS", "3")
+    monkeypatch.setenv("KAFKA_TOPIC_REPLICATION_FACTOR", "3")
 
     settings = get_kafka_settings()
 
     assert settings.topic_partitions == 3
+    assert settings.topic_replication_factor == 3
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning:kafka\\..*")
@@ -135,11 +137,12 @@ def test_ensure_topic_creates_configured_partition_count() -> None:
             bootstrap_servers="unused:9092",
             topic="retailpulse.web_events",
             partition_count=3,
+            replication_factor=3,
         )
 
     created_topic = admin.create_topics.call_args.args[0][0]
     assert created_topic.num_partitions == 3
-    assert created_topic.replication_factor == 1
+    assert created_topic.replication_factor == 3
     admin.close.assert_called_once()
 
 
@@ -153,7 +156,12 @@ def test_ensure_topic_expands_an_existing_topic() -> None:
     admin.describe_topics.return_value = [
         {
             "name": "retailpulse.web_events",
-            "partitions": [{"partition_index": 0}],
+            "partitions": [
+                {
+                    "partition_index": 0,
+                    "replica_nodes": [1, 2, 3],
+                }
+            ],
         }
     ]
 
@@ -162,10 +170,43 @@ def test_ensure_topic_expands_an_existing_topic() -> None:
             bootstrap_servers="unused:9092",
             topic="retailpulse.web_events",
             partition_count=3,
+            replication_factor=3,
         )
 
     new_partitions = admin.create_partitions.call_args.args[0]
     assert new_partitions["retailpulse.web_events"].total_count == 3
+    admin.close.assert_called_once()
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning:kafka\\..*")
+@pytest.mark.filterwarnings(
+    "ignore::DeprecationWarning:importlib\\.resources\\._legacy"
+)
+def test_ensure_topic_rejects_an_incompatible_replication_factor() -> None:
+    admin = MagicMock()
+    admin.list_topics.return_value = {"retailpulse.web_events"}
+    admin.describe_topics.return_value = [
+        {
+            "name": "retailpulse.web_events",
+            "partitions": [
+                {
+                    "partition_index": 0,
+                    "replica_nodes": [1],
+                }
+            ],
+        }
+    ]
+
+    with patch("kafka.KafkaAdminClient", return_value=admin):
+        with pytest.raises(RuntimeError, match="partition reassignment"):
+            ensure_topic(
+                bootstrap_servers="unused:9092",
+                topic="retailpulse.web_events",
+                partition_count=3,
+                replication_factor=3,
+            )
+
+    admin.create_partitions.assert_not_called()
     admin.close.assert_called_once()
 
 

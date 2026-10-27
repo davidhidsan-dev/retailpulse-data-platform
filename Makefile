@@ -6,7 +6,7 @@ KAFKA_CONSUMER_ID ?= retailpulse-consumer-1
 KAFKA_CONSUMER_TIMEOUT ?= 15
 LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs produce-events consume-events consume-events-partial
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs kafka-ps kafka-stop-broker-1 kafka-start-broker-1 produce-events consume-events consume-events-partial
 
 up:
 	docker compose up -d postgres
@@ -64,13 +64,22 @@ airflow-ps:
 	docker compose ps
 
 kafka-up:
-	docker compose up -d kafka
+	docker compose up -d kafka-1 kafka-2 kafka-3
 
 kafka-down:
-	docker compose stop kafka
+	docker compose stop kafka-1 kafka-2 kafka-3
 
 kafka-logs:
-	docker compose logs -f kafka
+	docker compose logs -f kafka-1 kafka-2 kafka-3
+
+kafka-ps:
+	docker compose ps kafka-1 kafka-2 kafka-3
+
+kafka-stop-broker-1:
+	docker compose stop kafka-1
+
+kafka-start-broker-1:
+	docker compose start kafka-1
 
 produce-events:
 	python -m src.streaming.produce_web_events --count $(EVENT_COUNT) --seed $(EVENT_SEED)

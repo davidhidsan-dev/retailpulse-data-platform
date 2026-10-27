@@ -13,7 +13,7 @@ Kafka desacopla al productor del consumidor. El productor publica eventos cuando
 ## ES — Conceptos del flujo
 
 - **Producer:** lee de PostgreSQL los IDs existentes de clientes y productos, crea el topic con el número de particiones configurado —o amplía uno existente—, genera un lote finito de eventos `product_view` y `add_to_cart`, los serializa como JSON UTF-8 y los publica.
-- **Broker:** un único proceso Kafka local recibe y conserva los mensajes. Usa KRaft y no ZooKeeper.
+- **Broker:** el laboratorio usa tres nodos Kafka locales en modo combinado; cada contenedor actúa como broker y controller KRaft, sin ZooKeeper.
 - **Topic:** `retailpulse.web_events` es el canal lógico dedicado a los eventos web.
 - **Message key:** se usa `session_id`. Los eventos de una misma sesión llegan a la misma partición mientras no cambie el número de particiones, y Kafka solo garantiza orden dentro de una partición.
 - **Partition:** subdivisión ordenada del topic. Esta iteración usa tres particiones para observar distribución y consumo paralelo.
@@ -80,12 +80,13 @@ El sobre mantiene el payload de negocio separado de los metadatos de transporte.
 La configuración del host vive en `.env`:
 
 ```dotenv
-KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
+KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094
 KAFKA_TOPIC_WEB_EVENTS=retailpulse.web_events
 KAFKA_TOPIC_PARTITIONS=3
+KAFKA_TOPIC_REPLICATION_FACTOR=3
 ```
 
-Kafka anuncia además `kafka:19092` para futuros clientes dentro de la red Docker.
+Dentro de la red Docker los brokers se anuncian como `kafka-1:19092`, `kafka-2:19092` y `kafka-3:19092`. El topic replica cada partición en los tres brokers y exige al menos dos réplicas sincronizadas para las escrituras con `acks="all"`.
 
 ```bash
 make up
@@ -124,14 +125,30 @@ make produce-events EVENT_COUNT=100 EVENT_SEED=42
 
 Kafka asigna cada partición a un solo consumer dentro del grupo. La distribución de eventos no tiene por qué ser uniforme porque se calcula a partir de `session_id`. Si se añaden más consumers que particiones, alguno quedará sin asignación.
 
+### Demo de failover
+
+Con los tres brokers healthy, se puede detener el primero y continuar publicando mediante los otros bootstrap servers:
+
+```bash
+make produce-events EVENT_COUNT=20 EVENT_SEED=42
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
+make kafka-stop-broker-1
+make kafka-ps
+make produce-events EVENT_COUNT=20 EVENT_SEED=43
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
+make kafka-start-broker-1
+```
+
+El primer consumo inicializa el grupo y permite que Kafka cree `__consumer_offsets` con los tres brokers disponibles. El factor de replicación 3 conserva una copia de cada partición en todos los brokers. `min.insync.replicas=2` junto con `acks="all"` permite perder un broker sin aceptar escrituras que solo existan en una única copia. Perder dos brokers deja al cluster sin suficientes réplicas sincronizadas para publicar de forma segura.
+
 ## ES — Batch frente a streaming
 
 El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y termina en raw JSONL. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
 
 ## ES — Limitaciones
 
-- Un broker, tres particiones y factor de replicación uno.
-- Sin alta disponibilidad ni seguridad de red; es solo desarrollo local.
+- Tres brokers combinados KRaft, tres particiones y factor de replicación tres.
+- El failover es una demostración local; no incluye persistencia de Kafka, seguridad de red, monitorización ni operación productiva.
 - Sin Schema Registry, Avro, Kafka Connect ni procesamiento continuo.
 - El consumer procesa lotes finitos para demos controladas.
 - Raw todavía no tiene capa bronze, reglas de calidad ni carga al warehouse.
@@ -152,7 +169,7 @@ Kafka decouples the producer from the consumer. The producer publishes events as
 ## EN — Flow concepts
 
 - **Producer:** reads existing customer and product IDs from PostgreSQL, creates the topic with the configured partition count —or expands an existing topic—, generates a finite batch of `product_view` and `add_to_cart` events, serializes them as UTF-8 JSON and publishes them.
-- **Broker:** one local Kafka process receives and retains messages. It uses KRaft without ZooKeeper.
+- **Broker:** the lab uses three local Kafka nodes in combined mode; each container acts as a KRaft broker and controller without ZooKeeper.
 - **Topic:** `retailpulse.web_events` is the dedicated logical channel for web events.
 - **Message key:** `session_id` is used. Events from the same session reach the same partition while the partition count remains unchanged, and Kafka only guarantees ordering within a partition.
 - **Partition:** an ordered subdivision of the topic. This iteration uses three partitions to demonstrate distribution and parallel consumption.
@@ -197,12 +214,13 @@ Each line uses an envelope with separate `kafka` and `payload` objects, as shown
 Host-side configuration lives in `.env`:
 
 ```dotenv
-KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
+KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094
 KAFKA_TOPIC_WEB_EVENTS=retailpulse.web_events
 KAFKA_TOPIC_PARTITIONS=3
+KAFKA_TOPIC_REPLICATION_FACTOR=3
 ```
 
-Kafka also advertises `kafka:19092` for future clients inside the Docker network.
+Inside the Docker network, the brokers advertise `kafka-1:19092`, `kafka-2:19092` and `kafka-3:19092`. The topic replicates each partition across all three brokers and requires at least two in-sync replicas for writes using `acks="all"`.
 
 ```bash
 make up
@@ -241,14 +259,30 @@ make produce-events EVENT_COUNT=100 EVENT_SEED=42
 
 Kafka assigns each partition to only one consumer within the group. Event distribution need not be even because it is derived from `session_id`. If there are more consumers than partitions, one of them receives no assignment.
 
+### Failover demo
+
+With all three brokers healthy, the first one can be stopped while publishing continues through the remaining bootstrap servers:
+
+```bash
+make produce-events EVENT_COUNT=20 EVENT_SEED=42
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
+make kafka-stop-broker-1
+make kafka-ps
+make produce-events EVENT_COUNT=20 EVENT_SEED=43
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
+make kafka-start-broker-1
+```
+
+The initial consumption initializes the group and lets Kafka create `__consumer_offsets` while all three brokers are available. Replication factor 3 keeps one copy of every partition on each broker. `min.insync.replicas=2` together with `acks="all"` allows one broker to fail without accepting writes stored on only one copy. Losing two brokers leaves the cluster without enough in-sync replicas for safe publishing.
+
 ## EN — Batch versus streaming
 
 The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently ends in raw JSONL. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
 
 ## EN — Limitations
 
-- One broker, three partitions and replication factor one.
-- No high availability or network security; this is local development only.
+- Three combined KRaft brokers, three partitions and replication factor three.
+- Failover is a local demonstration; it does not include Kafka persistence, network security, monitoring or production operations.
 - No Schema Registry, Avro, Kafka Connect or continuous processing.
 - The consumer processes finite batches for controlled demos.
 - Raw events do not yet have bronze, quality checks or warehouse loading.

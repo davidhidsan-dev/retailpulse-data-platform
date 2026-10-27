@@ -12,6 +12,7 @@ REQUIRED_KAFKA_VARIABLES = (
     "KAFKA_BOOTSTRAP_SERVERS",
     "KAFKA_TOPIC_WEB_EVENTS",
     "KAFKA_TOPIC_PARTITIONS",
+    "KAFKA_TOPIC_REPLICATION_FACTOR",
 )
 
 
@@ -22,6 +23,7 @@ class KafkaSettings:
     bootstrap_servers: str
     topic: str
     topic_partitions: int
+    topic_replication_factor: int
 
 
 def get_kafka_settings() -> KafkaSettings:
@@ -41,9 +43,20 @@ def get_kafka_settings() -> KafkaSettings:
         raise RuntimeError("KAFKA_TOPIC_PARTITIONS must be an integer.") from error
     if topic_partitions <= 0:
         raise RuntimeError("KAFKA_TOPIC_PARTITIONS must be positive.")
+    try:
+        topic_replication_factor = int(
+            str(values["KAFKA_TOPIC_REPLICATION_FACTOR"])
+        )
+    except ValueError as error:
+        raise RuntimeError(
+            "KAFKA_TOPIC_REPLICATION_FACTOR must be an integer."
+        ) from error
+    if topic_replication_factor <= 0:
+        raise RuntimeError("KAFKA_TOPIC_REPLICATION_FACTOR must be positive.")
 
     return KafkaSettings(
         bootstrap_servers=str(values["KAFKA_BOOTSTRAP_SERVERS"]),
         topic=str(values["KAFKA_TOPIC_WEB_EVENTS"]),
         topic_partitions=topic_partitions,
+        topic_replication_factor=topic_replication_factor,
     )

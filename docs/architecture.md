@@ -24,7 +24,7 @@ flowchart TD
     airflow[Airflow DAG]
     web_events[synthetic web events]
     producer[Python producer]
-    kafka[(Kafka broker)]
+    kafka[(Kafka cluster: 3 brokers)]
     consumer[Python consumer]
     event_raw[raw JSONL]
 
@@ -164,7 +164,7 @@ Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica 
 
 Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL.
 
-Esta primera vertical usa un único broker KRaft y termina en raw. No está orquestada por Airflow ni conectada al warehouse o a dbt.
+Esta primera vertical usa tres nodos combinados KRaft, tres particiones, factor de replicación tres y mínimo de dos réplicas sincronizadas. Permite demostrar distribución, consumer groups y failover de un broker, pero termina en raw y no está orquestada por Airflow ni conectada al warehouse o a dbt.
 
 ## ES — Por qué rejected no entra al warehouse analítico
 
@@ -207,7 +207,7 @@ flowchart TD
     airflow[Airflow DAG]
     web_events[synthetic web events]
     producer[Python producer]
-    kafka[(Kafka broker)]
+    kafka[(Kafka cluster: 3 brokers)]
     consumer[Python consumer]
     event_raw[raw JSONL]
 
@@ -347,7 +347,7 @@ Airflow orchestrates the full flow with a local manual DAG. It does not contain 
 
 A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL.
 
-This first vertical uses one KRaft broker and ends at raw storage. Airflow does not orchestrate it, and it is not connected to the warehouse or dbt.
+This first vertical uses three combined KRaft nodes, three partitions, replication factor three and a minimum of two in-sync replicas. It demonstrates distribution, consumer groups and one-broker failover, but ends at raw storage and is not orchestrated by Airflow or connected to the warehouse or dbt.
 
 ## EN — Why rejected does not enter the analytical warehouse
 

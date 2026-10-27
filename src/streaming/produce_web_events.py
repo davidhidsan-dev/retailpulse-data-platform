@@ -82,7 +82,11 @@ def _bounded_positive_int(value: str) -> int:
 
 
 def ensure_topic(
-    *, bootstrap_servers: str, topic: str, partition_count: int
+    *,
+    bootstrap_servers: str,
+    topic: str,
+    partition_count: int,
+    replication_factor: int,
 ) -> None:
     """Create the topic or increase it to the configured partition count."""
     from kafka import KafkaAdminClient
@@ -90,6 +94,8 @@ def ensure_topic(
 
     if partition_count <= 0:
         raise ValueError("partition_count must be positive")
+    if replication_factor <= 0:
+        raise ValueError("replication_factor must be positive")
 
     admin = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
     try:
@@ -99,7 +105,7 @@ def ensure_topic(
                     NewTopic(
                         name=topic,
                         num_partitions=partition_count,
-                        replication_factor=1,
+                        replication_factor=replication_factor,
                     )
                 ],
                 wait_for_metadata=True,
@@ -116,6 +122,16 @@ def ensure_topic(
         )
         if description is None:
             raise RuntimeError(f"Kafka did not return metadata for topic {topic!r}")
+        partition_replication_factors = {
+            len(partition.get("replica_nodes", partition.get("replicas", [])))
+            for partition in description["partitions"]
+        }
+        if partition_replication_factors != {replication_factor}:
+            raise RuntimeError(
+                f"Topic {topic!r} does not use replication factor "
+                f"{replication_factor}; changing replication requires "
+                "partition reassignment or topic recreation."
+            )
         current_count = len(description["partitions"])
         if current_count < partition_count:
             admin.create_partitions(
@@ -136,6 +152,7 @@ def publish_web_events(
     bootstrap_servers: str,
     topic: str,
     partition_count: int,
+    replication_factor: int,
 ) -> ProductionSummary:
     """Publish events and wait for broker acknowledgements."""
     from kafka import KafkaProducer
@@ -144,6 +161,7 @@ def publish_web_events(
         bootstrap_servers=bootstrap_servers,
         topic=topic,
         partition_count=partition_count,
+        replication_factor=replication_factor,
     )
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
@@ -204,6 +222,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         bootstrap_servers=settings.bootstrap_servers,
         topic=settings.topic,
         partition_count=settings.topic_partitions,
+        replication_factor=settings.topic_replication_factor,
     )
     LOGGER.info(
         "Published %s events to %s; partitions=%s; seed=%s",

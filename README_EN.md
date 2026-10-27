@@ -30,7 +30,7 @@ Included:
 - dbt staging and mart models.
 - dbt tests for keys, accepted values and relationships.
 - optional local Airflow orchestration.
-- Python producer and consumer for web events through a local Kafka broker.
+- Python producer and consumer for web events through a local three-broker Kafka cluster.
 - raw JSONL event storage with topic, partition, offset, timestamp and key.
 - unit tests and a reduced real-PostgreSQL and dbt run in GitHub Actions.
 
@@ -114,7 +114,7 @@ make dbt-test
 
 Run a finite streaming demo:
 
-The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The topic uses three partitions and distributes sessions through `session_id`.
+The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The topic uses three partitions, replication factor three and distributes sessions through `session_id`.
 
 ```bash
 make up
@@ -275,7 +275,7 @@ The pipeline architecture, project scope, result validation, final decisions, an
 
 - The data is synthetic.
 - The batch pipeline and first streaming vertical are local.
-- Kafka uses one broker and does not provide high availability.
+- Kafka uses three brokers to demonstrate local replication and failover, without claiming production operations.
 - The warehouse load uses full refresh / replace.
 - There is no incremental loading.
 - There is no dashboard in v1.0.
