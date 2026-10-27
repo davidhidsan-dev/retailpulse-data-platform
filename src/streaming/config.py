@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 REQUIRED_KAFKA_VARIABLES = (
     "KAFKA_BOOTSTRAP_SERVERS",
     "KAFKA_TOPIC_WEB_EVENTS",
+    "KAFKA_TOPIC_PARTITIONS",
 )
 
 
@@ -20,6 +21,7 @@ class KafkaSettings:
 
     bootstrap_servers: str
     topic: str
+    topic_partitions: int
 
 
 def get_kafka_settings() -> KafkaSettings:
@@ -33,7 +35,15 @@ def get_kafka_settings() -> KafkaSettings:
             f"{', '.join(missing)}. Copy .env.example to .env."
         )
 
+    try:
+        topic_partitions = int(str(values["KAFKA_TOPIC_PARTITIONS"]))
+    except ValueError as error:
+        raise RuntimeError("KAFKA_TOPIC_PARTITIONS must be an integer.") from error
+    if topic_partitions <= 0:
+        raise RuntimeError("KAFKA_TOPIC_PARTITIONS must be positive.")
+
     return KafkaSettings(
         bootstrap_servers=str(values["KAFKA_BOOTSTRAP_SERVERS"]),
         topic=str(values["KAFKA_TOPIC_WEB_EVENTS"]),
+        topic_partitions=topic_partitions,
     )

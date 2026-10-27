@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -20,6 +20,7 @@ from src.utils.paths import DEFAULT_DATA_ROOT
 LOGGER = logging.getLogger(__name__)
 DEFAULT_TIMEOUT_SECONDS = 15
 CONSUMER_GROUP_ID = "retailpulse-raw-web-events-v1"
+DEFAULT_CONSUMER_ID = "retailpulse-consumer-1"
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,8 @@ class ConsumptionSummary:
 
     message_count: int
     topic: str
+    consumer_id: str
+    partitions: dict[int, int]
     output_paths: tuple[Path, ...]
 
 
@@ -142,14 +145,18 @@ def consume_web_events(
     topic: str,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
     data_root: Path | str = DEFAULT_DATA_ROOT,
+    group_id: str = CONSUMER_GROUP_ID,
+    consumer_id: str = DEFAULT_CONSUMER_ID,
+    require_exact_count: bool = True,
 ) -> ConsumptionSummary:
-    """Consume exactly count messages, persist them, then commit offsets."""
+    """Consume a finite batch, persist it, then commit offsets."""
     from kafka import KafkaConsumer
 
     consumer = KafkaConsumer(
         topic,
         bootstrap_servers=bootstrap_servers,
-        group_id=CONSUMER_GROUP_ID,
+        group_id=group_id,
+        client_id=consumer_id,
         auto_offset_reset="earliest",
         enable_auto_commit=False,
         consumer_timeout_ms=timeout_seconds * 1_000,
@@ -170,7 +177,7 @@ def consume_web_events(
             if len(messages) == count:
                 break
 
-        if len(messages) != count:
+        if require_exact_count and len(messages) != count:
             raise RuntimeError(
                 f"Expected {count} messages but received {len(messages)} "
                 f"before the {timeout_seconds}s timeout."
@@ -181,9 +188,12 @@ def consume_web_events(
     finally:
         consumer.close()
 
+    partition_counts = Counter(message.partition for message in messages)
     return ConsumptionSummary(
         message_count=len(messages),
         topic=topic,
+        consumer_id=consumer_id,
+        partitions=dict(sorted(partition_counts.items())),
         output_paths=output_paths,
     )
 
@@ -204,6 +214,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_TIMEOUT_SECONDS,
         help="maximum idle wait before the controlled run fails",
     )
+    parser.add_argument(
+        "--group-id",
+        default=CONSUMER_GROUP_ID,
+        help="Kafka consumer group shared by cooperating consumers",
+    )
+    parser.add_argument(
+        "--consumer-id",
+        default=DEFAULT_CONSUMER_ID,
+        help="client identifier used to distinguish this consumer instance",
+    )
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="accept fewer messages after the idle timeout for group demos",
+    )
     return parser.parse_args(argv)
 
 
@@ -217,11 +242,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         bootstrap_servers=settings.bootstrap_servers,
         topic=settings.topic,
         timeout_seconds=args.timeout_seconds,
+        group_id=args.group_id,
+        consumer_id=args.consumer_id,
+        require_exact_count=not args.allow_partial,
     )
     LOGGER.info(
-        "Consumed %s events from %s; raw files=%s",
+        "Consumer %s read %s events from %s; partitions=%s; raw files=%s",
+        summary.consumer_id,
         summary.message_count,
         summary.topic,
+        summary.partitions,
         ", ".join(str(path) for path in summary.output_paths),
     )
 

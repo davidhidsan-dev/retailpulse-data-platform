@@ -114,7 +114,7 @@ make dbt-test
 
 Ejecutar una demo finita de streaming:
 
-La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`.
+La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`. El topic usa tres particiones y distribuye las sesiones mediante `session_id`.
 
 ```bash
 make up

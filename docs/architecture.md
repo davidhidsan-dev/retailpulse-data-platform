@@ -162,7 +162,7 @@ Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica 
 
 ### 13. Streaming Kafka v2.0
 
-Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Un consumer finito conserva el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL.
+Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL.
 
 Esta primera vertical usa un único broker KRaft y termina en raw. No está orquestada por Airflow ni conectada al warehouse o a dbt.
 
@@ -345,7 +345,7 @@ Airflow orchestrates the full flow with a local manual DAG. It does not contain 
 
 ### 13. Kafka streaming v2.0
 
-A Python producer uses existing PostgreSQL customers and products to publish synthetic web events to `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. A finite consumer preserves the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL.
+A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL.
 
 This first vertical uses one KRaft broker and ends at raw storage. Airflow does not orchestrate it, and it is not connected to the warehouse or dbt.
 

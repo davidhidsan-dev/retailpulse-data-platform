@@ -12,11 +12,11 @@ Kafka desacopla al productor del consumidor. El productor publica eventos cuando
 
 ## ES — Conceptos del flujo
 
-- **Producer:** lee de PostgreSQL los IDs existentes de clientes y productos, crea el topic de una partición si no existe, genera un lote finito de eventos `product_view` y `add_to_cart`, los serializa como JSON UTF-8 y los publica.
+- **Producer:** lee de PostgreSQL los IDs existentes de clientes y productos, crea el topic con el número de particiones configurado —o amplía uno existente—, genera un lote finito de eventos `product_view` y `add_to_cart`, los serializa como JSON UTF-8 y los publica.
 - **Broker:** un único proceso Kafka local recibe y conserva los mensajes. Usa KRaft y no ZooKeeper.
 - **Topic:** `retailpulse.web_events` es el canal lógico dedicado a los eventos web.
-- **Message key:** se usa `session_id`. Los eventos de una misma sesión tienden a llegar a la misma partición y Kafka solo garantiza orden dentro de una partición.
-- **Partition:** subdivisión ordenada del topic. Esta iteración usa una partición, pero la key prepara el contrato para aumentarlas después.
+- **Message key:** se usa `session_id`. Los eventos de una misma sesión llegan a la misma partición mientras no cambie el número de particiones, y Kafka solo garantiza orden dentro de una partición.
+- **Partition:** subdivisión ordenada del topic. Esta iteración usa tres particiones para observar distribución y consumo paralelo.
 - **Offset:** posición creciente de cada mensaje dentro de su partición. Permite conocer y reanudar el progreso del consumer.
 - **Consumer:** lee un número finito de mensajes, escribe raw y confirma los offsets solo después de guardar el fichero.
 
@@ -82,6 +82,7 @@ La configuración del host vive en `.env`:
 ```dotenv
 KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
 KAFKA_TOPIC_WEB_EVENTS=retailpulse.web_events
+KAFKA_TOPIC_PARTITIONS=3
 ```
 
 Kafka anuncia además `kafka:19092` para futuros clientes dentro de la red Docker.
@@ -103,13 +104,33 @@ python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
 ```
 
+### Demo de consumer group
+
+Tres consumers con el mismo `group-id` se reparten las tres particiones. Cada instancia usa un `consumer-id` distinto para poder identificarla. `--allow-partial` permite que cada consumer termine al vencer el tiempo de espera aunque haya recibido menos que el total publicado.
+
+Primero se inicia un consumer en cada una de tres terminales:
+
+```bash
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-1
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-2
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-3
+```
+
+Después se publican los eventos desde una cuarta terminal:
+
+```bash
+make produce-events EVENT_COUNT=100 EVENT_SEED=42
+```
+
+Kafka asigna cada partición a un solo consumer dentro del grupo. La distribución de eventos no tiene por qué ser uniforme porque se calcula a partir de `session_id`. Si se añaden más consumers que particiones, alguno quedará sin asignación.
+
 ## ES — Batch frente a streaming
 
 El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y termina en raw JSONL. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
 
 ## ES — Limitaciones
 
-- Un broker, una partición y factor de replicación uno.
+- Un broker, tres particiones y factor de replicación uno.
 - Sin alta disponibilidad ni seguridad de red; es solo desarrollo local.
 - Sin Schema Registry, Avro, Kafka Connect ni procesamiento continuo.
 - El consumer procesa lotes finitos para demos controladas.
@@ -130,11 +151,11 @@ Kafka decouples the producer from the consumer. The producer publishes events as
 
 ## EN — Flow concepts
 
-- **Producer:** reads existing customer and product IDs from PostgreSQL, creates the one-partition topic if needed, generates a finite batch of `product_view` and `add_to_cart` events, serializes them as UTF-8 JSON and publishes them.
+- **Producer:** reads existing customer and product IDs from PostgreSQL, creates the topic with the configured partition count —or expands an existing topic—, generates a finite batch of `product_view` and `add_to_cart` events, serializes them as UTF-8 JSON and publishes them.
 - **Broker:** one local Kafka process receives and retains messages. It uses KRaft without ZooKeeper.
 - **Topic:** `retailpulse.web_events` is the dedicated logical channel for web events.
-- **Message key:** `session_id` is used. Events from the same session tend to reach the same partition, and Kafka only guarantees ordering within a partition.
-- **Partition:** an ordered subdivision of the topic. This iteration uses one partition, but the key establishes the contract for adding more later.
+- **Message key:** `session_id` is used. Events from the same session reach the same partition while the partition count remains unchanged, and Kafka only guarantees ordering within a partition.
+- **Partition:** an ordered subdivision of the topic. This iteration uses three partitions to demonstrate distribution and parallel consumption.
 - **Offset:** the increasing position of each message within its partition. It tracks consumer progress and allows processing to resume.
 - **Consumer:** reads a finite number of messages, writes raw data and commits offsets only after the file is stored.
 
@@ -178,6 +199,7 @@ Host-side configuration lives in `.env`:
 ```dotenv
 KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
 KAFKA_TOPIC_WEB_EVENTS=retailpulse.web_events
+KAFKA_TOPIC_PARTITIONS=3
 ```
 
 Kafka also advertises `kafka:19092` for future clients inside the Docker network.
@@ -199,13 +221,33 @@ python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
 ```
 
+### Consumer-group demo
+
+Three consumers sharing the same `group-id` divide the three partitions among themselves. Every instance uses a different `consumer-id` so it can be identified. `--allow-partial` lets each consumer finish on idle timeout even when it received fewer messages than the total published count.
+
+Start one consumer in each of three terminals first:
+
+```bash
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-1
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-2
+make consume-events-partial EVENT_COUNT=100 KAFKA_CONSUMER_GROUP=partition-demo KAFKA_CONSUMER_ID=consumer-3
+```
+
+Then publish the events from a fourth terminal:
+
+```bash
+make produce-events EVENT_COUNT=100 EVENT_SEED=42
+```
+
+Kafka assigns each partition to only one consumer within the group. Event distribution need not be even because it is derived from `session_id`. If there are more consumers than partitions, one of them receives no assignment.
+
 ## EN — Batch versus streaming
 
 The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently ends in raw JSONL. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
 
 ## EN — Limitations
 
-- One broker, one partition and replication factor one.
+- One broker, three partitions and replication factor one.
 - No high availability or network security; this is local development only.
 - No Schema Registry, Avro, Kafka Connect or continuous processing.
 - The consumer processes finite batches for controlled demos.

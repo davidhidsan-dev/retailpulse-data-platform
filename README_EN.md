@@ -114,7 +114,7 @@ make dbt-test
 
 Run a finite streaming demo:
 
-The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`.
+The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The topic uses three partitions and distributes sessions through `session_id`.
 
 ```bash
 make up

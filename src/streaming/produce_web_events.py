@@ -81,20 +81,51 @@ def _bounded_positive_int(value: str) -> int:
     return parsed
 
 
-def ensure_topic(*, bootstrap_servers: str, topic: str) -> None:
-    """Create the single-partition demo topic when it does not exist."""
+def ensure_topic(
+    *, bootstrap_servers: str, topic: str, partition_count: int
+) -> None:
+    """Create the topic or increase it to the configured partition count."""
     from kafka import KafkaAdminClient
-    from kafka.admin import NewTopic
-    from kafka.errors import TopicAlreadyExistsError
+    from kafka.admin import NewPartitions, NewTopic
+
+    if partition_count <= 0:
+        raise ValueError("partition_count must be positive")
 
     admin = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
     try:
-        admin.create_topics(
-            [NewTopic(name=topic, num_partitions=1, replication_factor=1)],
-            wait_for_metadata=True,
+        if topic not in admin.list_topics():
+            admin.create_topics(
+                [
+                    NewTopic(
+                        name=topic,
+                        num_partitions=partition_count,
+                        replication_factor=1,
+                    )
+                ],
+                wait_for_metadata=True,
+            )
+            return
+
+        description = next(
+            (
+                item
+                for item in admin.describe_topics([topic])
+                if item.get("name", item.get("topic")) == topic
+            ),
+            None,
         )
-    except TopicAlreadyExistsError:
-        pass
+        if description is None:
+            raise RuntimeError(f"Kafka did not return metadata for topic {topic!r}")
+        current_count = len(description["partitions"])
+        if current_count < partition_count:
+            admin.create_partitions(
+                {topic: NewPartitions(total_count=partition_count)}
+            )
+        elif current_count > partition_count:
+            raise RuntimeError(
+                f"Topic {topic!r} already has {current_count} partitions; "
+                "Kafka cannot reduce a topic's partition count."
+            )
     finally:
         admin.close()
 
@@ -104,11 +135,16 @@ def publish_web_events(
     *,
     bootstrap_servers: str,
     topic: str,
+    partition_count: int,
 ) -> ProductionSummary:
     """Publish events and wait for broker acknowledgements."""
     from kafka import KafkaProducer
 
-    ensure_topic(bootstrap_servers=bootstrap_servers, topic=topic)
+    ensure_topic(
+        bootstrap_servers=bootstrap_servers,
+        topic=topic,
+        partition_count=partition_count,
+    )
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         acks="all",
@@ -167,6 +203,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         events,
         bootstrap_servers=settings.bootstrap_servers,
         topic=settings.topic,
+        partition_count=settings.topic_partitions,
     )
     LOGGER.info(
         "Published %s events to %s; partitions=%s; seed=%s",

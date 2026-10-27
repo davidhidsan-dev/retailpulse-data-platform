@@ -1,9 +1,12 @@
 DEMO_LOAD_DATE ?= 2099-01-01
 EVENT_COUNT ?= 20
 EVENT_SEED ?= 42
+KAFKA_CONSUMER_GROUP ?= retailpulse-raw-web-events-v1
+KAFKA_CONSUMER_ID ?= retailpulse-consumer-1
+KAFKA_CONSUMER_TIMEOUT ?= 15
 LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs produce-events consume-events
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs produce-events consume-events consume-events-partial
 
 up:
 	docker compose up -d postgres
@@ -73,7 +76,10 @@ produce-events:
 	python -m src.streaming.produce_web_events --count $(EVENT_COUNT) --seed $(EVENT_SEED)
 
 consume-events:
-	python -m src.streaming.consume_web_events --count $(EVENT_COUNT)
+	python -m src.streaming.consume_web_events --count $(EVENT_COUNT) --timeout-seconds $(KAFKA_CONSUMER_TIMEOUT) --group-id $(KAFKA_CONSUMER_GROUP) --consumer-id $(KAFKA_CONSUMER_ID)
+
+consume-events-partial:
+	python -m src.streaming.consume_web_events --count $(EVENT_COUNT) --timeout-seconds $(KAFKA_CONSUMER_TIMEOUT) --group-id $(KAFKA_CONSUMER_GROUP) --consumer-id $(KAFKA_CONSUMER_ID) --allow-partial
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
