@@ -5,7 +5,7 @@
 RetailPulse v2.0 añade una primera vertical de eventos web sin modificar el pipeline batch estable de v1.0:
 
 ```text
-synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL
+synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
 ```
 
 Kafka desacopla al productor del consumidor. El productor publica eventos cuando ocurren y el consumidor puede procesarlos a su ritmo usando las posiciones conservadas por Kafka.
@@ -20,7 +20,7 @@ Kafka desacopla al productor del consumidor. El productor publica eventos cuando
 - **Offset:** posición creciente de cada mensaje dentro de su partición. Permite conocer y reanudar el progreso del consumer.
 - **Consumer:** lee un número finito de mensajes, escribe raw y confirma los offsets solo después de guardar el fichero.
 
-## ES — Evento y almacenamiento raw
+## ES — Evento, raw y bronze
 
 Cada payload contiene:
 
@@ -75,6 +75,14 @@ Cada línea usa un sobre con dos objetos:
 
 El sobre mantiene el payload de negocio separado de los metadatos de transporte. El nombre contiene un `run_id` único y la escritura usa creación exclusiva para no sobrescribir silenciosamente una ejecución anterior.
 
+La conversión a bronze lee esos sobres, aplana el payload y los metadatos Kafka en columnas y escribe Parquet:
+
+```text
+data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
+```
+
+Cada fichero raw se corresponde con un fichero bronze del mismo `run_id`. Además de las columnas del evento, bronze conserva `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` y `kafka_key`, y añade `ingestion_id`, `ingested_at`, `source_system`, `source_table` y `source_file`. Esta transformación es estructural: todavía no aprueba ni rechaza eventos por reglas de negocio.
+
 ## ES — Ejecución local
 
 La configuración del host vive en `.env`:
@@ -95,6 +103,7 @@ make seed-db       # prepara los clientes y productos de la demo
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
+make bronze-events EVENT_DATE=2026-01-01
 make kafka-down
 ```
 
@@ -103,7 +112,10 @@ También se pueden ejecutar los módulos directamente:
 ```bash
 python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
+python -m src.streaming.raw_to_bronze --event-date 2026-01-01
 ```
+
+`--run-id` permite convertir un único fichero raw. Si se omite, se procesan todos los ficheros de la partición. Repetir la conversión mantiene la misma ruta bronze para cada `run_id`, evitando crear copias adicionales del mismo fichero de origen.
 
 ### Demo de consumer group
 
@@ -154,7 +166,7 @@ Esta variable se aplica solo a esos comandos; no modifica `.env` ni el factor de
 
 ## ES — Batch frente a streaming
 
-El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y termina en raw JSONL. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
+El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y actualmente llega hasta bronze Parquet. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
 
 ## ES — Limitaciones
 
@@ -162,8 +174,8 @@ El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa h
 - El failover es una demostración local; no incluye persistencia de Kafka, seguridad de red, monitorización ni operación productiva.
 - Sin Schema Registry, Avro, Kafka Connect ni procesamiento continuo.
 - El consumer procesa lotes finitos para demos controladas.
-- Raw todavía no tiene capa bronze, reglas de calidad ni carga al warehouse.
-- CI prueba generación, serialización y escritura; la prueba real broker-cliente se ejecuta localmente y podrá convertirse en integración opt-in si el flujo crece.
+- Bronze todavía no tiene reglas de calidad, rejected ni carga al warehouse.
+- CI prueba generación, serialización, escritura raw y conversión bronze; la prueba real broker-cliente se ejecuta localmente y podrá convertirse en integración opt-in si el flujo crece.
 
 ---
 
@@ -172,7 +184,7 @@ El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa h
 RetailPulse v2.0 adds a first web-event vertical without changing the stable v1.0 batch pipeline:
 
 ```text
-synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL
+synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
 ```
 
 Kafka decouples the producer from the consumer. The producer publishes events as they occur, while the consumer can process them at its own pace using positions retained by Kafka.
@@ -187,7 +199,7 @@ Kafka decouples the producer from the consumer. The producer publishes events as
 - **Offset:** the increasing position of each message within its partition. It tracks consumer progress and allows processing to resume.
 - **Consumer:** reads a finite number of messages, writes raw data and commits offsets only after the file is stored.
 
-## EN — Event and raw storage
+## EN — Event, raw and bronze storage
 
 Each payload contains:
 
@@ -220,6 +232,14 @@ data/raw/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.jsonl
 
 Each line uses an envelope with separate `kafka` and `payload` objects, as shown in the Spanish example above. This keeps business data separate from transport metadata. The filename contains a unique `run_id`, and exclusive file creation prevents a previous run from being overwritten silently.
 
+Bronze conversion reads those envelopes, flattens the payload and Kafka metadata into columns, and writes Parquet:
+
+```text
+data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
+```
+
+Each raw file maps to one bronze file with the same `run_id`. In addition to event columns, bronze keeps `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` and `kafka_key`, and adds `ingestion_id`, `ingested_at`, `source_system`, `source_table` and `source_file`. This is a structural transformation: it does not yet approve or reject events through business rules.
+
 ## EN — Local execution
 
 Host-side configuration lives in `.env`:
@@ -240,6 +260,7 @@ make seed-db       # prepares demo customers and products
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
+make bronze-events EVENT_DATE=2026-01-01
 make kafka-down
 ```
 
@@ -248,7 +269,10 @@ The modules can also be run directly:
 ```bash
 python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
+python -m src.streaming.raw_to_bronze --event-date 2026-01-01
 ```
+
+`--run-id` converts a single raw file. When omitted, every file in the partition is processed. Repeating the conversion keeps the same bronze path for each `run_id`, avoiding additional copies of the same source file.
 
 ### Consumer-group demo
 
@@ -299,7 +323,7 @@ This variable applies only to those commands; it changes neither `.env` nor the 
 
 ## EN — Batch versus streaming
 
-The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently ends in raw JSONL. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
+The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently reaches bronze Parquet. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
 
 ## EN — Limitations
 
@@ -307,5 +331,5 @@ The batch pipeline extracts complete relational snapshots from PostgreSQL and co
 - Failover is a local demonstration; it does not include Kafka persistence, network security, monitoring or production operations.
 - No Schema Registry, Avro, Kafka Connect or continuous processing.
 - The consumer processes finite batches for controlled demos.
-- Raw events do not yet have bronze, quality checks or warehouse loading.
-- CI tests generation, serialization and raw writing; the real broker-client check is local and may become an opt-in integration test if the flow grows.
+- Bronze events do not yet have quality checks, rejected output or warehouse loading.
+- CI tests generation, serialization, raw writing and bronze conversion; the real broker-client check is local and may become an opt-in integration test if the flow grows.

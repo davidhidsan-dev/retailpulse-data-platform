@@ -27,6 +27,7 @@ flowchart TD
     kafka[(Kafka cluster: 3 brokers)]
     consumer[Python consumer]
     event_raw[raw JSONL]
+    event_bronze[bronze Parquet]
 
     source --> ingestion
     ingestion --> raw
@@ -47,6 +48,7 @@ flowchart TD
     producer --> kafka
     kafka --> consumer
     consumer --> event_raw
+    event_raw --> event_bronze
 ```
 
 Versión textual:
@@ -60,7 +62,7 @@ PostgreSQL source -> Python ingestion
                          └── audit
 
 Airflow: orchestration of existing steps
-Streaming: web events -> Kafka -> Python consumer -> raw JSONL
+Streaming: web events -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
 Dashboard: outside v1.0
 ```
 
@@ -162,9 +164,9 @@ Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica 
 
 ### 13. Streaming Kafka v2.0
 
-Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL.
+Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL. Un paso posterior aplana cada sobre raw y escribe un Parquet bronze por `run_id`, conservando la trazabilidad al fichero de origen.
 
-Esta primera vertical usa tres nodos combinados KRaft, tres particiones, factor de replicación tres y mínimo de dos réplicas sincronizadas. Permite demostrar distribución, consumer groups y failover de un broker, pero termina en raw y no está orquestada por Airflow ni conectada al warehouse o a dbt.
+Esta vertical usa tres nodos combinados KRaft, tres particiones, factor de replicación tres y mínimo de dos réplicas sincronizadas. Permite demostrar distribución, consumer groups, failover de un broker y conversión raw-to-bronze, pero todavía no está orquestada por Airflow ni conectada al warehouse o a dbt.
 
 ## ES — Por qué rejected no entra al warehouse analítico
 
@@ -210,6 +212,7 @@ flowchart TD
     kafka[(Kafka cluster: 3 brokers)]
     consumer[Python consumer]
     event_raw[raw JSONL]
+    event_bronze[bronze Parquet]
 
     source --> ingestion
     ingestion --> raw
@@ -230,6 +233,7 @@ flowchart TD
     producer --> kafka
     kafka --> consumer
     consumer --> event_raw
+    event_raw --> event_bronze
 ```
 
 Text version:
@@ -243,7 +247,7 @@ PostgreSQL source -> Python ingestion
                          └── audit
 
 Airflow: orchestration of existing steps
-Streaming: web events -> Kafka -> Python consumer -> raw JSONL
+Streaming: web events -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
 Dashboard: outside v1.0
 ```
 
@@ -345,9 +349,9 @@ Airflow orchestrates the full flow with a local manual DAG. It does not contain 
 
 ### 13. Kafka streaming v2.0
 
-A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL.
+A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL. A later step flattens each raw envelope and writes one bronze Parquet file per `run_id`, preserving traceability to the source file.
 
-This first vertical uses three combined KRaft nodes, three partitions, replication factor three and a minimum of two in-sync replicas. It demonstrates distribution, consumer groups and one-broker failover, but ends at raw storage and is not orchestrated by Airflow or connected to the warehouse or dbt.
+This vertical uses three combined KRaft nodes, three partitions, replication factor three and a minimum of two in-sync replicas. It demonstrates distribution, consumer groups, one-broker failover and raw-to-bronze conversion, but is not yet orchestrated by Airflow or connected to the warehouse or dbt.
 
 ## EN — Why rejected does not enter the analytical warehouse
 

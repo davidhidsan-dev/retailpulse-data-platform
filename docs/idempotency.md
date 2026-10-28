@@ -52,6 +52,17 @@ Limitación:
 - no hay versionado histórico por reintento dentro de una misma `load_date`.
 - no hay locking entre ejecuciones simultáneas sobre la misma `load_date`.
 
+## ES — Eventos Kafka raw y bronze
+
+Cada consumo escribe un fichero raw nuevo identificado por `run_id`. La conversión mantiene ese identificador:
+
+```text
+data/raw/kafka/web_events/event_date=<date>/web_events_<run_id>.jsonl
+data/bronze/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+```
+
+Reprocesar el mismo fichero raw reemplaza su Parquet bronze en la misma ruta, por lo que no crea otra copia del mismo `run_id`. El `ingestion_id` y `ingested_at` cambian para describir la conversión más reciente. No hay locking entre conversiones simultáneas del mismo fichero.
+
 ## ES — Silver y rejected
 
 La validación lee una partición bronze y escribe:
@@ -192,6 +203,17 @@ Limitation:
 - writing all tables is not an atomic filesystem transaction.
 - there is no historical versioning by retry inside the same `load_date`.
 - there is no locking between simultaneous runs for the same `load_date`.
+
+## EN — Kafka raw and bronze events
+
+Each consumer run writes a new raw file identified by `run_id`. Conversion keeps that identifier:
+
+```text
+data/raw/kafka/web_events/event_date=<date>/web_events_<run_id>.jsonl
+data/bronze/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+```
+
+Reprocessing the same raw file replaces its bronze Parquet at the same path, so it does not create another copy of the same `run_id`. `ingestion_id` and `ingested_at` change to describe the latest conversion. There is no locking between concurrent conversions of the same file.
 
 ## EN — Silver and rejected
 

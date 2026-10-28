@@ -32,15 +32,16 @@ Incluye:
 - orquestación local opcional con Airflow.
 - producer y consumer Python para eventos web mediante un cluster Kafka local de tres brokers.
 - almacenamiento de eventos raw como JSONL con topic, partition, offset, timestamp y key.
+- conversión de eventos raw a bronze Parquet con metadatos de ingesta.
 - tests unitarios y un recorrido reducido con PostgreSQL real y dbt en GitHub Actions.
 
-La v1.0 cubre el pipeline batch completo hasta los marts de dbt. La v2.0 empieza con un flujo Kafka independiente que por ahora termina en raw.
+La v1.0 cubre el pipeline batch completo hasta los marts de dbt. La v2.0 añade un flujo Kafka independiente que actualmente llega hasta bronze.
 
 ## Arquitectura
 
 ```text
 Batch:     PostgreSQL → Python → raw/bronze → quality → silver → warehouse → dbt
-Streaming: web events → Kafka → Python consumer → raw JSONL
+Streaming: web events → Kafka → Python consumer → raw JSONL → bronze Parquet
 ```
 
 Airflow no transforma datos. Solo coordina comandos Python y dbt ya existentes.
@@ -123,6 +124,7 @@ make seed-db
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
+make bronze-events EVENT_DATE=2026-01-01
 make kafka-down
 ```
 

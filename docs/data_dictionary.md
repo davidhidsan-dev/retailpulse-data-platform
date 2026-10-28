@@ -73,14 +73,31 @@ El proyecto usa datos sintéticos, por lo que las descripciones explican el cont
 | `payment_amount` | Importe del pago. | source / lake / warehouse / dbt |
 | `payment_date` | Fecha del pago. | source / lake / warehouse / dbt |
 
+## ES — Eventos web Kafka
+
+| Campo | Descripción | Capa |
+|---|---|---|
+| `event_id` | UUID único del evento web. | raw / bronze |
+| `event_type` | Tipo de evento: `product_view` o `add_to_cart`. | raw / bronze |
+| `occurred_at` | Momento UTC del evento en el tiempo de negocio simulado. | raw / bronze |
+| `session_id` | Sesión usada también como message key de Kafka. | raw / bronze |
+| `customer_id` | Cliente de la sesión; puede ser nulo para navegación anónima. | raw / bronze |
+| `product_id` | Producto referenciado por el evento. | raw / bronze |
+| `kafka_topic` | Topic del mensaje consumido. | bronze |
+| `kafka_partition` | Partición Kafka del mensaje. | bronze |
+| `kafka_offset` | Posición del mensaje dentro de su partición. | bronze |
+| `kafka_timestamp` | Timestamp `CreateTime` conservado por Kafka. | bronze |
+| `kafka_key` | Key del mensaje; en este flujo coincide con `session_id`. | bronze |
+
 ## ES — Columnas técnicas de bronze
 
 | Campo | Descripción |
 |---|---|
 | `ingestion_id` | UUID común a las tablas ingeridas en una misma ejecución. |
 | `ingested_at` | Timestamp UTC de ingesta. |
-| `source_system` | Sistema origen. En v1.0: `postgres`. |
+| `source_system` | Sistema origen: `postgres` o `kafka`. |
 | `source_table` | Nombre de la tabla fuente original. |
+| `source_file` | Fichero raw de procedencia; se usa en bronze Kafka. |
 
 ## ES — Columnas técnicas de silver
 
@@ -211,14 +228,31 @@ The project uses synthetic data, so descriptions explain the technical and analy
 | `payment_amount` | Payment amount. | source / lake / warehouse / dbt |
 | `payment_date` | Payment date. | source / lake / warehouse / dbt |
 
+## EN — Kafka web events
+
+| Field | Description | Layer |
+|---|---|---|
+| `event_id` | Unique web-event UUID. | raw / bronze |
+| `event_type` | Event type: `product_view` or `add_to_cart`. | raw / bronze |
+| `occurred_at` | UTC event time in the simulated business timeline. | raw / bronze |
+| `session_id` | Session identifier also used as the Kafka message key. | raw / bronze |
+| `customer_id` | Session customer; nullable for anonymous browsing. | raw / bronze |
+| `product_id` | Product referenced by the event. | raw / bronze |
+| `kafka_topic` | Topic of the consumed message. | bronze |
+| `kafka_partition` | Kafka partition containing the message. | bronze |
+| `kafka_offset` | Message position within its partition. | bronze |
+| `kafka_timestamp` | Kafka-preserved `CreateTime` timestamp. | bronze |
+| `kafka_key` | Message key; it matches `session_id` in this flow. | bronze |
+
 ## EN — Bronze technical columns
 
 | Field | Description |
 |---|---|
 | `ingestion_id` | UUID shared by tables ingested in the same run. |
 | `ingested_at` | UTC ingestion timestamp. |
-| `source_system` | Source system. In v1.0: `postgres`. |
+| `source_system` | Source system: `postgres` or `kafka`. |
 | `source_table` | Original source table name. |
+| `source_file` | Originating raw file; used by Kafka bronze. |
 
 ## EN — Silver technical columns
 
