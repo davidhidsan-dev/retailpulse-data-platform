@@ -33,14 +33,14 @@ Cada payload contiene:
 
 El generador parte de una fecha UTC fija para que una misma combinación de `count` y `seed` reproduzca también los timestamps, no solo el resto de campos.
 
-Los eventos solo referencian `customer_id` y `product_id` existentes en la fuente PostgreSQL. Un `customer_id` nulo representa navegación anónima. Cada sesión aparece al menos una vez en el lote y conserva el mismo cliente —o permanece anónima— en todos sus eventos.
+Los eventos solo referencian `customer_id` y `product_id` existentes en la fuente PostgreSQL. Un `customer_id` nulo representa navegación anónima. Cada sesión aparece al menos una vez en el lote y conserva el mismo cliente —o permanece anónima— en todos sus eventos. El `session_id` incluye la seed de la simulación para que dos lotes generados con seeds distintas no reutilicen la misma sesión.
 
 ### Fechas del flujo
 
 El proyecto distingue tres tiempos diferentes:
 
 - `occurred_at` representa cuándo ocurrió el evento en el tiempo simulado del negocio. Actualmente parte de `2026-01-01`, la misma fecha de referencia que usa el generador relacional, por lo que clientes y productos ya existen cuando son referenciados.
-- El `timestamp` de Kafka representa cuándo el broker recibió realmente el mensaje.
+- El `timestamp` de Kafka usa el modo predeterminado `CreateTime`: representa el timestamp asignado al record por el producer al publicarlo. No es la hora de escritura del broker; para eso Kafka tendría que usar `LogAppendTime`.
 - `load_date` pertenece al pipeline batch y representa cuándo se extrajo un snapshot de PostgreSQL; no es la fecha de creación de sus registros ni tiene que coincidir con `event_date`.
 
 La partición raw `event_date=YYYY-MM-DD` se obtiene de `occurred_at`. Por tanto, ejecutar hoy eventos con `occurred_at=2026-01-01` representa un replay histórico reproducible, no una simulación estrictamente en tiempo real.
@@ -59,14 +59,14 @@ Cada línea usa un sobre con dos objetos:
     "topic": "retailpulse.web_events",
     "partition": 0,
     "offset": 17,
-    "timestamp": "2026-01-01T00:00:00Z",
-    "key": "session-000001"
+    "timestamp": "2026-10-27T12:00:00Z",
+    "key": "session-seed-42-000001"
   },
   "payload": {
     "event_id": "...",
     "event_type": "product_view",
     "occurred_at": "2026-01-01T00:00:00Z",
-    "session_id": "session-000001",
+    "session_id": "session-seed-42-000001",
     "customer_id": null,
     "product_id": 10
   }
@@ -141,6 +141,17 @@ make kafka-start-broker-1
 
 El primer consumo inicializa el grupo y permite que Kafka cree `__consumer_offsets` con los tres brokers disponibles. El factor de replicación 3 conserva una copia de cada partición en todos los brokers. `min.insync.replicas=2` junto con `acks="all"` permite perder un broker sin aceptar escrituras que solo existan en una única copia. Perder dos brokers deja al cluster sin suficientes réplicas sincronizadas para publicar de forma segura.
 
+La demo de failover se valida ejecutando los clientes dentro del entorno Linux/Docker. La ejecución directa desde Windows puede presentar timeouts de bootstrap al apagar uno de los brokers.
+
+En las pruebas locales con Windows y `kafka-python==3.0.11`, un cliente nuevo puede agotar el timeout al intentar conectar con el broker detenido antes de probar otro bootstrap server. El mismo diagnóstico en Linux sí continúa con el servidor disponible. Para evitar esa limitación en Windows, los dos comandos ejecutados con `kafka-1` detenido pueden indicar únicamente los endpoints disponibles:
+
+```bash
+make produce-events EVENT_COUNT=20 EVENT_SEED=43 KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9093,127.0.0.1:9094
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9093,127.0.0.1:9094
+```
+
+Esta variable se aplica solo a esos comandos; no modifica `.env` ni el factor de replicación del topic. El producer y el consumer usan directamente los clientes estándar de la librería.
+
 ## ES — Batch frente a streaming
 
 El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y termina en raw JSONL. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
@@ -189,14 +200,14 @@ Each payload contains:
 
 The generator uses a fixed UTC start time so the same `count` and `seed` reproduce timestamps as well as the other fields.
 
-Events only reference `customer_id` and `product_id` values that exist in the PostgreSQL source. A null `customer_id` represents anonymous browsing. Every generated session appears at least once in the batch and keeps the same customer —or remains anonymous— across all its events.
+Events only reference `customer_id` and `product_id` values that exist in the PostgreSQL source. A null `customer_id` represents anonymous browsing. Every generated session appears at least once in the batch and keeps the same customer —or remains anonymous— across all its events. The `session_id` includes the simulation seed so batches generated with different seeds do not reuse the same session.
 
 ### Flow dates
 
 The project distinguishes three different times:
 
 - `occurred_at` represents when the event happened in simulated business time. It currently starts on `2026-01-01`, the same reference date used by the relational generator, so customers and products already exist when referenced.
-- The Kafka `timestamp` represents when the broker actually received the message.
+- The Kafka `timestamp` uses the default `CreateTime` mode: it represents the record timestamp assigned by the producer when publishing. It is not the broker append time; that would require Kafka to use `LogAppendTime`.
 - `load_date` belongs to the batch pipeline and represents when a PostgreSQL snapshot was extracted; it is not the creation date of its records and does not have to match `event_date`.
 
 The raw `event_date=YYYY-MM-DD` partition is derived from `occurred_at`. Therefore, publishing events today with `occurred_at=2026-01-01` represents a reproducible historical replay rather than a strict real-time simulation.
@@ -274,6 +285,17 @@ make kafka-start-broker-1
 ```
 
 The initial consumption initializes the group and lets Kafka create `__consumer_offsets` while all three brokers are available. Replication factor 3 keeps one copy of every partition on each broker. `min.insync.replicas=2` together with `acks="all"` allows one broker to fail without accepting writes stored on only one copy. Losing two brokers leaves the cluster without enough in-sync replicas for safe publishing.
+
+The failover demo is validated with the clients running inside the Linux/Docker environment. Running them directly from Windows may produce bootstrap timeouts after one broker is stopped.
+
+In local tests on Windows with `kafka-python==3.0.11`, a new client may exhaust its timeout connecting to the stopped broker before trying another bootstrap server. The same diagnostic on Linux does continue to the available server. To avoid this limitation on Windows, the two commands run while `kafka-1` is stopped can specify only the available endpoints:
+
+```bash
+make produce-events EVENT_COUNT=20 EVENT_SEED=43 KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9093,127.0.0.1:9094
+make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9093,127.0.0.1:9094
+```
+
+This variable applies only to those commands; it changes neither `.env` nor the topic replication factor. The producer and consumer use the library's standard clients directly.
 
 ## EN — Batch versus streaming
 

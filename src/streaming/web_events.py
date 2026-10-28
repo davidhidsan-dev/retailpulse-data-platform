@@ -91,7 +91,11 @@ def generate_web_events(
     available_product_ids = _validate_reference_ids("product_ids", product_ids)
     generator = random.Random(seed)
     session_count = max(1, min(count, max(2, count // 4)))
-    sessions = [f"session-{number:06d}" for number in range(1, session_count + 1)]
+    seed_label = f"neg-{abs(seed)}" if seed < 0 else str(seed)
+    sessions = [
+        f"session-seed-{seed_label}-{number:06d}"
+        for number in range(1, session_count + 1)
+    ]
     session_customers = {
         session_id: (
             None

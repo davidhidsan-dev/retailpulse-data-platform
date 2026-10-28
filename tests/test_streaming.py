@@ -54,6 +54,15 @@ def test_web_event_generation_is_reproducible_with_a_seed() -> None:
     assert first == second
 
 
+def test_different_seeds_use_disjoint_session_ids() -> None:
+    first = _generate_events(40, seed=42)
+    second = _generate_events(40, seed=43)
+
+    assert {event.session_id for event in first}.isdisjoint(
+        event.session_id for event in second
+    )
+
+
 def test_generated_event_ids_are_unique() -> None:
     events = _generate_events(500, seed=42)
 
