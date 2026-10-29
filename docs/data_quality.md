@@ -181,6 +181,14 @@ Anomalías demo:
 | `order_items` | total de línea inconsistente |
 | `payments` | estado de pago no permitido |
 
+## ES — Calidad de eventos Kafka
+
+La v2.0 valida conjuntamente los ficheros `data/bronze/kafka/web_events` seleccionados y conserva salidas por `event_date` y `run_id`. Comprueba el contrato del evento, timestamps UTC, dominio de `event_type`, IDs, coherencia entre `session_id` y `kafka_key`, `event_id` único entre ficheros y posición topic-partition-offset única dentro de cada `run_id`.
+
+Los eventos válidos se publican en `data/silver/kafka/web_events`; los inválidos pasan a `data/rejected/kafka/web_events` con `rejection_reason`. `data/audit/streaming_quality_runs.parquet` registra una fila por fichero y ejecución. Esta validación aún no contrasta clientes y productos con una snapshot relacional de referencia.
+
+`make quality-events-demo` crea un `run_id` separado con cinco errores controlados para demostrar rejected records. No modifica el bronze normal ni debe utilizarse como dataset base.
+
 ## ES — Por qué rejected no entra a marts
 
 Rejected conserva datos conocidos como inválidos. Si se cargaran al modelo analítico, podrían contaminar ventas, inventario, relaciones y métricas.
@@ -379,6 +387,14 @@ Demo anomalies:
 | `orders` | nonexistent customer FK |
 | `order_items` | inconsistent line total |
 | `payments` | unsupported payment status |
+
+## EN — Kafka event quality
+
+v2.0 validates the selected `data/bronze/kafka/web_events` files together and preserves outputs by `event_date` and `run_id`. It checks the event contract, UTC timestamps, the `event_type` domain, IDs, consistency between `session_id` and `kafka_key`, unique `event_id` values across files and a unique topic-partition-offset position within each `run_id`.
+
+Valid events are published to `data/silver/kafka/web_events`; invalid events move to `data/rejected/kafka/web_events` with `rejection_reason`. `data/audit/streaming_quality_runs.parquet` records one row per file and execution. This validation does not yet compare customers and products with a relational reference snapshot.
+
+`make quality-events-demo` creates a separate `run_id` with five controlled errors to demonstrate rejected records. It does not modify normal bronze and must not be used as a base dataset.
 
 ## EN — Why rejected does not enter marts
 

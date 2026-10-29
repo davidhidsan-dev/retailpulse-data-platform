@@ -139,6 +139,8 @@ data/audit/quality_runs.parquet
 | `rejection_rate` | Proporción de filas rechazadas sobre las filas de entrada, entre `0` y `1`. |
 | `status` | `passed`, `warning` o `failed`. |
 
+La calidad de eventos utiliza `data/audit/streaming_quality_runs.parquet`. Conserva los mismos conteos y añade `event_date`, `run_id`, `ingestion_id` y `error_message` para identificar cada fichero Kafka validado.
+
 ## ES — Marts dbt
 
 | Modelo | Grano | Descripción |
@@ -293,6 +295,8 @@ data/audit/quality_runs.parquet
 | `rejected_rows` | Rejected rows. |
 | `rejection_rate` | Proportion of rejected rows over input rows, between `0` and `1`. |
 | `status` | `passed`, `warning` or `failed`. |
+
+Event quality uses `data/audit/streaming_quality_runs.parquet`. It keeps the same counts and adds `event_date`, `run_id`, `ingestion_id` and `error_message` to identify each validated Kafka file.
 
 ## EN — dbt marts
 

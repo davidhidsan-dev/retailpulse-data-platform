@@ -5,7 +5,7 @@
 RetailPulse v2.0 añade una primera vertical de eventos web sin modificar el pipeline batch estable de v1.0:
 
 ```text
-synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
+synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet -> quality -> silver/rejected
 ```
 
 Kafka desacopla al productor del consumidor. El productor publica eventos cuando ocurren y el consumidor puede procesarlos a su ritmo usando las posiciones conservadas por Kafka.
@@ -83,6 +83,39 @@ data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 
 Cada fichero raw se corresponde con un fichero bronze del mismo `run_id`. Además de las columnas del evento, bronze conserva `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` y `kafka_key`, y añade `ingestion_id`, `ingested_at`, `source_system`, `source_table` y `source_file`. Esta transformación es estructural: todavía no aprueba ni rechaza eventos por reglas de negocio.
 
+## ES — Calidad y publicación de eventos
+
+La validación procesa conjuntamente los ficheros bronze seleccionados para poder detectar duplicados incluso entre `run_id` diferentes. Comprueba:
+
+- `event_id` obligatorio, UUID y único;
+- `event_type` dentro del dominio permitido;
+- `occurred_at` UTC y coherente con la partición `event_date`;
+- IDs enteros positivos, permitiendo `customer_id` nulo;
+- `kafka_key` igual a `session_id`;
+- topic esperado, partición y offset no negativos;
+- unicidad de `(kafka_topic, kafka_partition, kafka_offset)` dentro de cada `run_id`;
+- procedencia técnica de cada fichero bronze.
+
+Las filas válidas e inválidas se escriben por separado conservando el mismo `run_id`:
+
+```text
+data/silver/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
+data/rejected/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>_rejected.parquet
+data/audit/streaming_quality_runs.parquet
+```
+
+Silver añade `quality_run_id` y `quality_checked_at`. Rejected añade además `rejection_reason`. La auditoría registra conteos y estado por fichero; un contrato técnico bronze inválido bloquea la publicación de ese fichero y queda registrado como `failed`.
+
+### Demo controlada de rejected
+
+Una ejecución normal puede producir cero rechazados. Para enseñar el circuito de calidad sin contaminar el lote normal, la demo copia un bronze existente a un `run_id` separado, crea su raw correspondiente e introduce cinco anomalías deterministas: `event_type` inválido, `product_id` negativo, fecha fuera de la partición y una posición Kafka duplicada que afecta a dos filas.
+
+```bash
+make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>
+```
+
+Si la partición solo contiene un bronze, `EVENT_RUN_ID` se puede omitir. La demo usa `quality-demo` como `run_id`, necesita al menos cinco filas y reemplaza únicamente sus propios archivos al repetirse. Es material de demostración y no debe utilizarse como fuente normal.
+
 ## ES — Ejecución local
 
 La configuración del host vive en `.env`:
@@ -104,6 +137,7 @@ make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
 make bronze-events EVENT_DATE=2026-01-01
+make quality-events EVENT_DATE=2026-01-01
 make kafka-down
 ```
 
@@ -113,6 +147,7 @@ También se pueden ejecutar los módulos directamente:
 python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
 python -m src.streaming.raw_to_bronze --event-date 2026-01-01
+python -m src.streaming.validate_web_events --event-date 2026-01-01
 ```
 
 `--run-id` permite convertir un único fichero raw. Si se omite, se procesan todos los ficheros de la partición. Repetir la conversión mantiene la misma ruta bronze para cada `run_id`, evitando crear copias adicionales del mismo fichero de origen.
@@ -166,7 +201,7 @@ Esta variable se aplica solo a esos comandos; no modifica `.env` ni el factor de
 
 ## ES — Batch frente a streaming
 
-El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y actualmente llega hasta bronze Parquet. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
+El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa hasta silver, warehouse y dbt. El flujo de streaming captura eventos web independientes y actualmente llega hasta silver/rejected Parquet. Kafka añade un segundo flujo; no sustituye PostgreSQL ni está orquestado por Airflow.
 
 ## ES — Limitaciones
 
@@ -174,8 +209,10 @@ El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa h
 - El failover es una demostración local; no incluye persistencia de Kafka, seguridad de red, monitorización ni operación productiva.
 - Sin Schema Registry, Avro, Kafka Connect ni procesamiento continuo.
 - El consumer procesa lotes finitos para demos controladas.
-- Bronze todavía no tiene reglas de calidad, rejected ni carga al warehouse.
-- CI prueba generación, serialización, escritura raw y conversión bronze; la prueba real broker-cliente se ejecuta localmente y podrá convertirse en integración opt-in si el flujo crece.
+- Silver de eventos todavía no se carga al warehouse ni se modela con dbt.
+- La calidad aún no contrasta `customer_id` y `product_id` contra una snapshot relacional de referencia.
+- La unicidad se comprueba dentro de los ficheros y la `event_date` seleccionados, no mediante un índice global de todo el histórico.
+- CI prueba generación, serialización, raw, bronze y calidad; la prueba real broker-cliente se ejecuta localmente y podrá convertirse en integración opt-in si el flujo crece.
 
 ---
 
@@ -184,7 +221,7 @@ El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa h
 RetailPulse v2.0 adds a first web-event vertical without changing the stable v1.0 batch pipeline:
 
 ```text
-synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet
+synthetic web-event producer -> Kafka -> Python consumer -> raw JSONL -> bronze Parquet -> quality -> silver/rejected
 ```
 
 Kafka decouples the producer from the consumer. The producer publishes events as they occur, while the consumer can process them at its own pace using positions retained by Kafka.
@@ -240,6 +277,39 @@ data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 
 Each raw file maps to one bronze file with the same `run_id`. In addition to event columns, bronze keeps `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` and `kafka_key`, and adds `ingestion_id`, `ingested_at`, `source_system`, `source_table` and `source_file`. This is a structural transformation: it does not yet approve or reject events through business rules.
 
+## EN — Event quality and publication
+
+Validation processes the selected bronze files together so duplicates can be detected even across different `run_id` values. It checks:
+
+- required, UUID and unique `event_id` values;
+- the accepted `event_type` domain;
+- UTC `occurred_at` values matching the `event_date` partition;
+- positive integer IDs, while allowing a null `customer_id`;
+- `kafka_key` matching `session_id`;
+- expected topic and non-negative partition and offset;
+- uniqueness of `(kafka_topic, kafka_partition, kafka_offset)` within each `run_id`;
+- technical provenance for every bronze file.
+
+Valid and invalid rows are written separately while preserving the same `run_id`:
+
+```text
+data/silver/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
+data/rejected/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>_rejected.parquet
+data/audit/streaming_quality_runs.parquet
+```
+
+Silver adds `quality_run_id` and `quality_checked_at`. Rejected also adds `rejection_reason`. Audit records counts and status per file; an invalid bronze technical contract blocks publication for that file and is recorded as `failed`.
+
+### Controlled rejected-record demo
+
+A normal execution may produce zero rejected rows. To demonstrate the quality path without contaminating the normal run, the demo copies an existing bronze file to a separate `run_id`, creates its matching raw file and introduces five deterministic anomalies: an invalid `event_type`, a negative `product_id`, a date outside the partition and one duplicated Kafka position affecting two rows.
+
+```bash
+make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>
+```
+
+When the partition contains only one bronze file, `EVENT_RUN_ID` can be omitted. The demo uses `quality-demo` as its `run_id`, requires at least five rows and replaces only its own files when rerun. It is demonstration material and must not be used as a normal source.
+
 ## EN — Local execution
 
 Host-side configuration lives in `.env`:
@@ -261,6 +331,7 @@ make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
 make bronze-events EVENT_DATE=2026-01-01
+make quality-events EVENT_DATE=2026-01-01
 make kafka-down
 ```
 
@@ -270,6 +341,7 @@ The modules can also be run directly:
 python -m src.streaming.produce_web_events --count 20 --seed 42
 python -m src.streaming.consume_web_events --count 20
 python -m src.streaming.raw_to_bronze --event-date 2026-01-01
+python -m src.streaming.validate_web_events --event-date 2026-01-01
 ```
 
 `--run-id` converts a single raw file. When omitted, every file in the partition is processed. Repeating the conversion keeps the same bronze path for each `run_id`, avoiding additional copies of the same source file.
@@ -323,7 +395,7 @@ This variable applies only to those commands; it changes neither `.env` nor the 
 
 ## EN — Batch versus streaming
 
-The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently reaches bronze Parquet. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
+The batch pipeline extracts complete relational snapshots from PostgreSQL and continues through silver, warehouse and dbt. The streaming flow captures independent web events and currently reaches silver/rejected Parquet. Kafka adds a second flow; it does not replace PostgreSQL and is not orchestrated by Airflow.
 
 ## EN — Limitations
 
@@ -331,5 +403,7 @@ The batch pipeline extracts complete relational snapshots from PostgreSQL and co
 - Failover is a local demonstration; it does not include Kafka persistence, network security, monitoring or production operations.
 - No Schema Registry, Avro, Kafka Connect or continuous processing.
 - The consumer processes finite batches for controlled demos.
-- Bronze events do not yet have quality checks, rejected output or warehouse loading.
-- CI tests generation, serialization, raw writing and bronze conversion; the real broker-client check is local and may become an opt-in integration test if the flow grows.
+- Event silver is not yet loaded into the warehouse or modeled with dbt.
+- Quality does not yet compare `customer_id` and `product_id` against a relational reference snapshot.
+- Uniqueness is checked within the selected files and `event_date`, not through a global index over the full history.
+- CI tests generation, serialization, raw, bronze and quality; the real broker-client check is local and may become an opt-in integration test if the flow grows.

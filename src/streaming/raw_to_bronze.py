@@ -172,7 +172,15 @@ def read_raw_event_file(source_path: Path | str) -> pd.DataFrame:
                     line_number=line_number,
                 )
             )
-    return pd.DataFrame.from_records(rows, columns=EVENT_COLUMNS)
+    dataframe = pd.DataFrame.from_records(rows, columns=EVENT_COLUMNS)
+    for column in (
+        "customer_id",
+        "product_id",
+        "kafka_partition",
+        "kafka_offset",
+    ):
+        dataframe[column] = pd.array(dataframe[column], dtype="Int64")
+    return dataframe
 
 
 def add_bronze_event_metadata(

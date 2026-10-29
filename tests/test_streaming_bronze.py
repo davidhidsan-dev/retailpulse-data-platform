@@ -105,6 +105,8 @@ def test_raw_event_conversion_preserves_payload_and_kafka_metadata(
     assert bronze.loc[0, "source_system"] == "kafka"
     assert bronze.loc[0, "source_table"] == "web_events"
     assert bronze.loc[0, "source_file"] == raw_path.name
+    assert pd.api.types.is_integer_dtype(bronze["customer_id"].dtype)
+    assert pd.api.types.is_integer_dtype(bronze["product_id"].dtype)
     assert "__index_level_0__" not in bronze.columns
 
 

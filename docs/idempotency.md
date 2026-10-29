@@ -59,9 +59,11 @@ Cada consumo escribe un fichero raw nuevo identificado por `run_id`. La conversi
 ```text
 data/raw/kafka/web_events/event_date=<date>/web_events_<run_id>.jsonl
 data/bronze/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+data/silver/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+data/rejected/kafka/web_events/event_date=<date>/web_events_<run_id>_rejected.parquet
 ```
 
-Reprocesar el mismo fichero raw reemplaza su Parquet bronze en la misma ruta, por lo que no crea otra copia del mismo `run_id`. El `ingestion_id` y `ingested_at` cambian para describir la conversión más reciente. No hay locking entre conversiones simultáneas del mismo fichero.
+Reprocesar el mismo fichero raw reemplaza su Parquet bronze en la misma ruta, y repetir calidad reemplaza las salidas silver/rejected del mismo `run_id`. No se crean copias adicionales del mismo fichero lógico. Los IDs y timestamps técnicos cambian en cada ejecución, y `streaming_quality_runs.parquet` acumula auditoría. No hay locking entre ejecuciones simultáneas sobre el mismo fichero.
 
 ## ES — Silver y rejected
 
@@ -211,9 +213,11 @@ Each consumer run writes a new raw file identified by `run_id`. Conversion keeps
 ```text
 data/raw/kafka/web_events/event_date=<date>/web_events_<run_id>.jsonl
 data/bronze/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+data/silver/kafka/web_events/event_date=<date>/web_events_<run_id>.parquet
+data/rejected/kafka/web_events/event_date=<date>/web_events_<run_id>_rejected.parquet
 ```
 
-Reprocessing the same raw file replaces its bronze Parquet at the same path, so it does not create another copy of the same `run_id`. `ingestion_id` and `ingested_at` change to describe the latest conversion. There is no locking between concurrent conversions of the same file.
+Reprocessing the same raw file replaces its bronze Parquet at the same path, and repeating quality replaces silver/rejected outputs for the same `run_id`. No extra copies of the same logical file are created. Technical IDs and timestamps change on every run, while `streaming_quality_runs.parquet` accumulates audit history. There is no locking between concurrent runs on the same file.
 
 ## EN — Silver and rejected
 
