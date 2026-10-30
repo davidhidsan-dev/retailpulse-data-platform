@@ -116,6 +116,8 @@ Limitación:
 - no conserva histórico de snapshots.
 - no demuestra incrementalidad.
 
+Los eventos streaming sí usan append incremental. Antes de cargar un `run_id`, el loader exige la última auditoría aprobada y verifica que silver pertenece a la ingesta bronze actual. `warehouse_source.web_events.event_id` es clave primaria; `ON CONFLICT DO NOTHING` hace que repetir el mismo evento no cambie el recuento. Un `event_id` ya existente se considera replay y no actualiza su payload.
+
 ## ES — dbt
 
 dbt reconstruye staging y marts desde `warehouse_source`.
@@ -149,6 +151,7 @@ Limitación:
 - Usar la misma `load_date` desde ingesta hasta warehouse.
 - No cargar warehouse desde particiones demo salvo para pruebas controladas.
 - Ejecutar `dbt run` después de `load-warehouse`.
+- Para eventos, conservar `event_date` y `run_id` desde bronze hasta `load-events-warehouse`.
 - Revisar audit si se repite una validación.
 - No interpretar audit acumulado como tabla deduplicada de estado final.
 
@@ -270,6 +273,8 @@ Limitation:
 - no snapshot history.
 - no incremental loading.
 
+Streaming events do use incremental append. Before loading a `run_id`, the loader requires the latest approved audit record and verifies that silver belongs to the current bronze ingestion. `warehouse_source.web_events.event_id` is the primary key; `ON CONFLICT DO NOTHING` means replaying the same event does not change row counts. An existing `event_id` is treated as a replay and does not update its payload.
+
 ## EN — dbt
 
 dbt rebuilds staging and marts from `warehouse_source`.
@@ -303,5 +308,6 @@ Limitation:
 - Use the same `load_date` from ingestion to warehouse.
 - Do not load warehouse from demo partitions except for controlled tests.
 - Run `dbt run` after `load-warehouse`.
+- For events, keep the same `event_date` and `run_id` from bronze through `load-events-warehouse`.
 - Review audit if validation is repeated.
 - Do not interpret appended audit as a deduplicated final-state table.

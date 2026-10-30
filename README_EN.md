@@ -34,15 +34,18 @@ Included:
 - raw JSONL event storage with topic, partition, offset, timestamp and key.
 - raw-to-bronze Parquet event conversion with ingestion metadata.
 - bronze event validation with silver, rejected and audit outputs.
+- incremental, idempotent silver-event loading into `warehouse_source.web_events`.
+- dbt models `stg_web_events`, `fact_web_events` and `fact_web_sessions`.
 - unit tests and a reduced real-PostgreSQL and dbt run in GitHub Actions.
 
-v1.0 covers the complete batch pipeline up to the dbt marts. v2.0 adds an independent Kafka flow that currently reaches silver/rejected storage.
+v1.0 covers the complete batch pipeline. v2.0 extends the Kafka flow from production and consumption through quality, warehouse and dbt marts.
 
 ## Architecture
 
 ```text
 Batch:     PostgreSQL → Python → raw/bronze → quality → silver → warehouse → dbt
-Streaming: web events → Kafka → Python consumer → raw → bronze → quality → silver/rejected
+Streaming: web events → Kafka → consumer → raw → bronze → quality → silver → warehouse → dbt
+                                                               └→ rejected/audit
 ```
 
 Airflow does not transform data. It only coordinates existing Python and dbt commands.
@@ -127,6 +130,9 @@ make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
 make bronze-events EVENT_DATE=2026-01-01
 make quality-events EVENT_DATE=2026-01-01
+make load-events-warehouse EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
+make dbt-run
+make dbt-test
 make kafka-down
 ```
 
@@ -282,18 +288,18 @@ The pipeline architecture, project scope, result validation, final decisions, an
 - The data is synthetic.
 - The batch pipeline and first streaming vertical are local.
 - Kafka uses three brokers to demonstrate local replication and failover, without claiming production operations.
-- The warehouse load uses full refresh / replace.
-- There is no incremental loading.
+- Batch tables use full refresh / replace; `warehouse_source.web_events` uses idempotent append by `event_id`.
+- There is no CDC or incremental dbt model.
 - There is no dashboard in v1.0.
 - Airflow is local/dev only.
 - There are no SCDs or semantic metrics layer.
-- CI tests streaming code without a broker and runs a reduced batch pipeline with real PostgreSQL and dbt; Kafka and Airflow are validated separately in local development.
+- CI runs the reduced batch pipeline and idempotent streaming load against real PostgreSQL, followed by `dbt build`; the Kafka broker and Airflow are validated separately in local development.
 - Rejected records are kept in the lake, not analytical marts.
 
 ## Reasonable next steps
 
 1. Build a simple dashboard on top of the dbt marts.
 2. Add business-oriented metrics for analytical consumption.
-3. Explore an incremental loading strategy.
+3. Evaluate incremental loading or CDC for the batch flow.
 4. Add operational checks around freshness and volume.
 5. Evaluate additional extensions only when they solve a concrete project problem.

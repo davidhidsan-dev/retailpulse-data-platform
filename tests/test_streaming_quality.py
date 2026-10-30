@@ -52,7 +52,8 @@ def _write_bronze_run(
             offset=offset_start + position,
             timestamp_ms=int(
                 datetime(2026, 10, 28, 12, tzinfo=UTC).timestamp() * 1_000
-            ),
+            )
+            + position,
             key=event_message_key(event),
             value=serialize_web_event(event),
         )

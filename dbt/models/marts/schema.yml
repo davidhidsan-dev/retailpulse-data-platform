@@ -93,3 +93,56 @@ models:
       - name: stock_quantity
         data_tests:
           - not_null
+
+  - name: fact_web_events
+    description: One row per quality-approved Kafka web event.
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [product_view, add_to_cart]
+      - name: session_id
+        data_tests:
+          - not_null
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+
+  - name: fact_web_sessions
+    description: One row per web session aggregated from approved events.
+    columns:
+      - name: session_id
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+      - name: event_count
+        data_tests:
+          - not_null
+      - name: product_view_count
+        data_tests:
+          - not_null
+      - name: add_to_cart_count
+        data_tests:
+          - not_null

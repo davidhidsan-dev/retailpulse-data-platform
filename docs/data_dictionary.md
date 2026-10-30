@@ -77,12 +77,12 @@ El proyecto usa datos sintéticos, por lo que las descripciones explican el cont
 
 | Campo | Descripción | Capa |
 |---|---|---|
-| `event_id` | UUID único del evento web. | raw / bronze |
-| `event_type` | Tipo de evento: `product_view` o `add_to_cart`. | raw / bronze |
-| `occurred_at` | Momento UTC del evento en el tiempo de negocio simulado. | raw / bronze |
-| `session_id` | Sesión usada también como message key de Kafka. | raw / bronze |
-| `customer_id` | Cliente de la sesión; puede ser nulo para navegación anónima. | raw / bronze |
-| `product_id` | Producto referenciado por el evento. | raw / bronze |
+| `event_id` | UUID único del evento web y clave idempotente del warehouse. | raw / bronze / silver / warehouse / dbt |
+| `event_type` | Tipo de evento: `product_view` o `add_to_cart`. | raw / bronze / silver / warehouse / dbt |
+| `occurred_at` | Momento UTC del evento en el tiempo de negocio simulado. | raw / bronze / silver / warehouse / dbt |
+| `session_id` | Sesión usada también como message key de Kafka. | raw / bronze / silver / warehouse / dbt |
+| `customer_id` | Cliente de la sesión; puede ser nulo para navegación anónima. | raw / bronze / silver / warehouse / dbt |
+| `product_id` | Producto referenciado por el evento. | raw / bronze / silver / warehouse / dbt |
 | `kafka_topic` | Topic del mensaje consumido. | bronze |
 | `kafka_partition` | Partición Kafka del mensaje. | bronze |
 | `kafka_offset` | Posición del mensaje dentro de su partición. | bronze |
@@ -150,6 +150,8 @@ La calidad de eventos utiliza `data/audit/streaming_quality_runs.parquet`. Conse
 | `dim_date` | una fila por día | Dimensión calendario basada en fechas de pedido. |
 | `fact_sales` | una fila por `order_item_id` | Hecho de ventas a nivel línea de pedido. |
 | `fact_inventory` | una fila por `product_id` | Snapshot analítico de inventario por producto. |
+| `fact_web_events` | una fila por `event_id` | Hecho de comportamiento web validado. |
+| `fact_web_sessions` | una fila por `session_id` | Resumen de actividad y productos por sesión. |
 
 ## ES — Nota sobre tipos
 
@@ -234,12 +236,12 @@ The project uses synthetic data, so descriptions explain the technical and analy
 
 | Field | Description | Layer |
 |---|---|---|
-| `event_id` | Unique web-event UUID. | raw / bronze |
-| `event_type` | Event type: `product_view` or `add_to_cart`. | raw / bronze |
-| `occurred_at` | UTC event time in the simulated business timeline. | raw / bronze |
-| `session_id` | Session identifier also used as the Kafka message key. | raw / bronze |
-| `customer_id` | Session customer; nullable for anonymous browsing. | raw / bronze |
-| `product_id` | Product referenced by the event. | raw / bronze |
+| `event_id` | Unique web-event UUID and idempotent warehouse key. | raw / bronze / silver / warehouse / dbt |
+| `event_type` | Event type: `product_view` or `add_to_cart`. | raw / bronze / silver / warehouse / dbt |
+| `occurred_at` | UTC event time in the simulated business timeline. | raw / bronze / silver / warehouse / dbt |
+| `session_id` | Session identifier also used as the Kafka message key. | raw / bronze / silver / warehouse / dbt |
+| `customer_id` | Session customer; nullable for anonymous browsing. | raw / bronze / silver / warehouse / dbt |
+| `product_id` | Product referenced by the event. | raw / bronze / silver / warehouse / dbt |
 | `kafka_topic` | Topic of the consumed message. | bronze |
 | `kafka_partition` | Kafka partition containing the message. | bronze |
 | `kafka_offset` | Message position within its partition. | bronze |
@@ -307,6 +309,8 @@ Event quality uses `data/audit/streaming_quality_runs.parquet`. It keeps the sam
 | `dim_date` | one row per day | Calendar dimension based on order dates. |
 | `fact_sales` | one row per `order_item_id` | Sales fact at order-line level. |
 | `fact_inventory` | one row per `product_id` | Analytical inventory snapshot by product. |
+| `fact_web_events` | one row per `event_id` | Validated web-behavior fact. |
+| `fact_web_sessions` | one row per `session_id` | Session activity and product summary. |
 
 ## EN — Type note
 

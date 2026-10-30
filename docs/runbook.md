@@ -86,6 +86,20 @@ make load-warehouse LOAD_DATE=2026-09-07
 
 La carga warehouse conserva las tablas de `warehouse_source` y las vistas staging mientras reemplaza las filas en una transacción; después ejecuta `make dbt-run` y `make dbt-test` para actualizar y validar los marts.
 
+## ES — Flujo streaming hasta dbt
+
+Después de producir y consumir un lote, usa el `run_id` del fichero generado:
+
+```bash
+make bronze-events EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make quality-events EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make load-events-warehouse EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make dbt-run
+make dbt-test
+```
+
+La carga exige audit aprobado y silver coherente con bronze. Repetir `load-events-warehouse` no duplica `event_id`; informa las filas ya existentes como duplicados omitidos. No cargues el `run_id=quality-demo` como dataset normal.
+
 ## ES — Ejecución con fechas explícitas
 
 ```bash
@@ -188,6 +202,8 @@ data/bronze/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 data/silver/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 data/rejected/postgres/<table>/load_date=YYYY-MM-DD/<table>_rejected.parquet
 data/audit/quality_runs.parquet
+data/audit/streaming_quality_runs.parquet
+data/silver/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 ```
 
 Tablas warehouse:
@@ -199,6 +215,7 @@ warehouse_source.inventory
 warehouse_source.orders
 warehouse_source.order_items
 warehouse_source.payments
+warehouse_source.web_events
 ```
 
 Modelos dbt:
@@ -209,6 +226,8 @@ analytics.dim_product
 analytics.dim_date
 analytics.fact_sales
 analytics.fact_inventory
+analytics.fact_web_events
+analytics.fact_web_sessions
 ```
 
 ## ES — Errores comunes
@@ -380,6 +399,20 @@ make load-warehouse LOAD_DATE=2026-09-07
 
 The warehouse load preserves the `warehouse_source` tables and staging views while replacing rows in one transaction; then run `make dbt-run` and `make dbt-test` to refresh and validate the marts.
 
+## EN — Streaming flow through dbt
+
+After producing and consuming a batch, use the generated file's `run_id`:
+
+```bash
+make bronze-events EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make quality-events EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make load-events-warehouse EVENT_DATE=YYYY-MM-DD EVENT_RUN_ID=<run_id>
+make dbt-run
+make dbt-test
+```
+
+Loading requires approved audit and silver consistent with bronze. Repeating `load-events-warehouse` does not duplicate `event_id`; it reports existing rows as skipped duplicates. Do not load `run_id=quality-demo` as a normal dataset.
+
 ## EN — Explicit-date execution
 
 ```bash
@@ -482,6 +515,8 @@ data/bronze/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 data/silver/postgres/<table>/load_date=YYYY-MM-DD/<table>.parquet
 data/rejected/postgres/<table>/load_date=YYYY-MM-DD/<table>_rejected.parquet
 data/audit/quality_runs.parquet
+data/audit/streaming_quality_runs.parquet
+data/silver/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 ```
 
 Warehouse tables:
@@ -493,6 +528,7 @@ warehouse_source.inventory
 warehouse_source.orders
 warehouse_source.order_items
 warehouse_source.payments
+warehouse_source.web_events
 ```
 
 dbt models:
@@ -503,6 +539,8 @@ analytics.dim_product
 analytics.dim_date
 analytics.fact_sales
 analytics.fact_inventory
+analytics.fact_web_events
+analytics.fact_web_sessions
 ```
 
 ## EN — Common errors

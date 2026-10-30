@@ -9,9 +9,8 @@ KAFKA_CONSUMER_TIMEOUT ?= 15
 LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 EVENT_RUN_ID_ARG = $(if $(EVENT_RUN_ID),--run-id $(EVENT_RUN_ID),)
 SOURCE_EVENT_RUN_ID_ARG = $(if $(EVENT_RUN_ID),--source-run-id $(EVENT_RUN_ID),)
-SOURCE_EVENT_RUN_ID_ARG = $(if $(EVENT_RUN_ID),--source-run-id $(EVENT_RUN_ID),)
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs kafka-ps kafka-stop-broker-1 kafka-start-broker-1 produce-events consume-events consume-events-partial bronze-events quality-events quality-events-demo
+.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse load-events-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs kafka-ps kafka-stop-broker-1 kafka-start-broker-1 produce-events consume-events consume-events-partial bronze-events quality-events quality-events-demo
 
 up:
 	docker compose up -d postgres
@@ -100,6 +99,9 @@ bronze-events:
 
 quality-events:
 	python -m src.streaming.validate_web_events --event-date $(EVENT_DATE) $(EVENT_RUN_ID_ARG)
+
+load-events-warehouse:
+	python -m src.warehouse.load_streaming_silver_to_warehouse --event-date $(EVENT_DATE) $(EVENT_RUN_ID_ARG)
 
 quality-events-demo:
 	python -m src.streaming.create_bad_bronze_demo --event-date $(EVENT_DATE) $(SOURCE_EVENT_RUN_ID_ARG) --demo-run-id $(DEMO_EVENT_RUN_ID)

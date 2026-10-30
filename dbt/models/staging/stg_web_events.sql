@@ -1,0 +1,20 @@
+select
+    cast(event_id as text) as event_id,
+    cast(event_type as text) as event_type,
+    cast(occurred_at as timestamp with time zone) as occurred_at,
+    cast(session_id as text) as session_id,
+    cast(customer_id as integer) as customer_id,
+    cast(product_id as integer) as product_id,
+    cast(kafka_topic as text) as kafka_topic,
+    cast(kafka_partition as integer) as kafka_partition,
+    cast(kafka_offset as bigint) as kafka_offset,
+    cast(kafka_timestamp as timestamp with time zone) as kafka_timestamp,
+    cast(kafka_key as text) as kafka_key,
+    cast(ingestion_id as text) as ingestion_id,
+    cast(ingested_at as timestamp with time zone) as ingested_at,
+    cast(source_system as text) as source_system,
+    cast(source_table as text) as source_table,
+    cast(source_file as text) as source_file,
+    cast(quality_run_id as text) as quality_run_id,
+    cast(quality_checked_at as timestamp with time zone) as quality_checked_at
+from {{ source('warehouse_source', 'web_events') }}

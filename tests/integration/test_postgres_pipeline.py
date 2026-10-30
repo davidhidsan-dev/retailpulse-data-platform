@@ -1,7 +1,7 @@
 """Opt-in integration coverage for the pipeline against real PostgreSQL."""
 
 import os
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,17 @@ from sqlalchemy import text
 
 from src.ingest.postgres_to_lake import extract_table, ingest_postgres_to_lake
 from src.quality.validate_bronze import validate_bronze_quality
+from src.streaming.consume_web_events import (
+    ConsumedKafkaMessage,
+    write_raw_messages,
+)
+from src.streaming.raw_to_bronze import convert_raw_events_to_bronze
+from src.streaming.validate_web_events import validate_bronze_web_events
+from src.streaming.web_events import (
+    event_message_key,
+    generate_web_events,
+    serialize_web_event,
+)
 from src.synthetic_data.generate_retail_data import generate_all_data
 from src.utils.database import (
     execute_sql_file,
@@ -20,6 +31,10 @@ from src.utils.database import (
 from src.warehouse.load_silver_to_warehouse import (
     load_silver_to_warehouse,
     write_warehouse_table,
+)
+from src.warehouse.load_streaming_silver_to_warehouse import (
+    DEFAULT_WAREHOUSE_SCHEMA_PATH,
+    load_streaming_silver_to_warehouse,
 )
 
 
@@ -205,4 +220,89 @@ def test_pipeline_rerun_and_failed_refresh_are_transactional(
     finally:
         with engine.begin() as connection:
             connection.exec_driver_sql("DROP SCHEMA IF EXISTS ci_checks CASCADE")
+        engine.dispose()
+
+
+def test_streaming_warehouse_load_is_idempotent(tmp_path: Path) -> None:
+    engine = get_engine()
+    event_date = date(2026, 1, 1)
+    run_id = "integration-stream-run"
+    quality_run_id = "integration-stream-quality"
+    events = generate_web_events(
+        6,
+        customer_ids=(1, 2, 3),
+        product_ids=(1, 2, 3),
+        seed=901,
+    )
+    timestamp_ms = int(
+        datetime(2026, 1, 1, 12, 0, tzinfo=UTC).timestamp() * 1_000
+    )
+    messages = [
+        ConsumedKafkaMessage(
+            topic="retailpulse.web_events",
+            partition=index % 3,
+            offset=index,
+            timestamp_ms=timestamp_ms + index,
+            key=event_message_key(event),
+            value=serialize_web_event(event),
+        )
+        for index, event in enumerate(events)
+    ]
+
+    try:
+        schema_sql = DEFAULT_WAREHOUSE_SCHEMA_PATH.read_text(encoding="utf-8")
+        with engine.begin() as connection:
+            connection.exec_driver_sql(schema_sql)
+            connection.execute(
+                text(
+                    "DELETE FROM warehouse_source.web_events "
+                    "WHERE quality_run_id = :quality_run_id"
+                ),
+                {"quality_run_id": quality_run_id},
+            )
+
+        write_raw_messages(messages, data_root=tmp_path, run_id=run_id)
+        convert_raw_events_to_bronze(
+            event_date,
+            data_root=tmp_path,
+            run_id=run_id,
+            ingestion_id="integration-stream-ingestion",
+            ingested_at="2026-01-01T12:05:00Z",
+        )
+        validate_bronze_web_events(
+            event_date,
+            data_root=tmp_path,
+            run_id=run_id,
+            quality_run_id=quality_run_id,
+            quality_checked_at="2026-01-01T12:06:00Z",
+        )
+
+        first = load_streaming_silver_to_warehouse(
+            event_date,
+            run_id=run_id,
+            engine=engine,
+            data_root=tmp_path,
+        )
+        second = load_streaming_silver_to_warehouse(
+            event_date,
+            run_id=run_id,
+            engine=engine,
+            data_root=tmp_path,
+        )
+
+        with engine.connect() as connection:
+            stored_rows = int(
+                connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM warehouse_source.web_events "
+                        "WHERE quality_run_id = :quality_run_id"
+                    ),
+                    {"quality_run_id": quality_run_id},
+                ).scalar_one()
+            )
+        assert first.inserted_rows == 6
+        assert second.inserted_rows == 0
+        assert second.duplicate_rows == 6
+        assert stored_rows == 6
+    finally:
         engine.dispose()

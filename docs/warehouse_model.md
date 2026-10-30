@@ -25,6 +25,10 @@ La carga compara también el `ingestion_id` de silver con el de la partición br
 
 La recarga conserva las tablas de `warehouse_source`: escribe primero en tablas de carga aisladas y después reemplaza sus filas dentro de una única transacción. Así las vistas staging siguen existiendo durante la recarga. Los marts existentes pueden seguir mostrando la carga anterior hasta ejecutar `make dbt-run`; después de cada carga ejecuta también `make dbt-test`.
 
+### Eventos streaming
+
+La carga de eventos sigue otro contrato: valida la auditoría de `event_date` y `run_id`, compara silver con la ingesta bronze actual y añade las filas a `warehouse_source.web_events`. `event_id` es clave primaria y los conflictos se omiten, por lo que repetir una carga deja el mismo estado final. Rejected y la demo de errores no se cargan automáticamente.
+
 ## ES — Staging
 
 Modelos staging:
@@ -35,6 +39,7 @@ Modelos staging:
 - `stg_orders`
 - `stg_order_items`
 - `stg_payments`
+- `stg_web_events`
 
 Responsabilidades:
 
@@ -54,6 +59,8 @@ Modelos marts:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
 `dim_customer` tiene una fila por `customer_id`.
 
@@ -72,6 +79,8 @@ una fila por order_item_id
 ```text
 una fila por product_id
 ```
+
+`fact_web_events` conserva una fila por `event_id`. `fact_web_sessions` agrega esos eventos a una fila por `session_id`, con inicio, fin y conteos de actividad.
 
 ## ES — `synthetic_behavior_segment`
 
@@ -95,11 +104,13 @@ El test genérico `not_empty` detecta tablas vacías que los tests de filas no p
 
 `reconcile_fact_sales` compara cada `order_item_id` de `stg_order_items` con `fact_sales`. Falla si una línea aceptada desaparece, aparece una línea inesperada o cambia `line_total`. Cada fallo muestra el identificador y los importes de ambas capas, además de sus recuentos y sumas totales. El test de unicidad de `fact_sales` detecta líneas duplicadas. Para inspeccionar los fallos, ejecuta `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` desde `dbt/`.
 
+`reconcile_fact_web_events` exige que staging y el hecho de eventos contengan los mismos eventos y atributos principales. `web_sessions_one_customer` evita agrupar clientes identificados diferentes bajo una misma sesión.
+
 Estos tests protegen el contrato analítico. La separación de rejected records pertenece a la fase de calidad en Python.
 
 ## ES — Limitaciones
 
-- carga full refresh / replace.
+- las tablas batch usan full refresh / replace; solo eventos usan append idempotente.
 - sin histórico de snapshots en warehouse.
 - sin SCD.
 - sin claves sustitutas.
@@ -133,6 +144,10 @@ The loader also compares the `ingestion_id` in silver with the current bronze pa
 
 The refresh preserves the `warehouse_source` tables: it writes isolated loading tables first and then replaces their rows in one transaction. Staging views therefore remain available throughout the refresh. Existing marts may still show the previous load until `make dbt-run` runs; follow every load with `make dbt-test` as well.
 
+### Streaming events
+
+Event loading follows a different contract: it validates audit for the selected `event_date` and `run_id`, compares silver with the current bronze ingestion and appends rows to `warehouse_source.web_events`. `event_id` is the primary key and conflicts are skipped, so rerunning a load leaves the same final state. Rejected data and the bad-data demo are not loaded automatically.
+
 ## EN — Staging
 
 Staging models:
@@ -143,6 +158,7 @@ Staging models:
 - `stg_orders`
 - `stg_order_items`
 - `stg_payments`
+- `stg_web_events`
 
 Responsibilities:
 
@@ -162,6 +178,8 @@ Mart models:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
 `dim_customer` has one row per `customer_id`.
 
@@ -180,6 +198,8 @@ one row per order_item_id
 ```text
 one row per product_id
 ```
+
+`fact_web_events` keeps one row per `event_id`. `fact_web_sessions` aggregates those events to one row per `session_id`, with start, end and activity counts.
 
 ## EN — `synthetic_behavior_segment`
 
@@ -203,11 +223,13 @@ The generic `not_empty` test catches empty tables that row-level tests cannot de
 
 `reconcile_fact_sales` compares every `order_item_id` in `stg_order_items` with `fact_sales`. It fails when an accepted item is missing, an unexpected item appears, or `line_total` changes. Each failure shows the item ID and amounts from both layers, plus their total row counts and amounts. The `fact_sales` uniqueness test catches duplicate items. Run `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` from `dbt/` to inspect the failures.
 
+`reconcile_fact_web_events` requires staging and the event fact to contain the same events and core attributes. `web_sessions_one_customer` prevents different identified customers from being grouped under one session.
+
 These tests protect the analytical contract. Rejected-record separation belongs to the Python quality layer.
 
 ## EN — Limitations
 
-- full refresh / replace load.
+- batch tables use full refresh / replace; only events use idempotent append.
 - no warehouse snapshot history.
 - no SCD.
 - no surrogate keys.

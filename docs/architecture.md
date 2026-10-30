@@ -31,6 +31,9 @@ flowchart TD
     event_quality[Python event quality]
     event_silver[silver Parquet]
     event_rejected[rejected Parquet]
+    event_warehouse[(warehouse_source.web_events)]
+    event_staging[dbt stg_web_events]
+    event_marts[dbt web-event marts]
 
     source --> ingestion
     ingestion --> raw
@@ -55,6 +58,9 @@ flowchart TD
     event_bronze --> event_quality
     event_quality --> event_silver
     event_quality --> event_rejected
+    event_silver --> event_warehouse
+    event_warehouse --> event_staging
+    event_staging --> event_marts
 ```
 
 Versión textual:
@@ -69,7 +75,7 @@ PostgreSQL source -> Python ingestion
 
 Airflow: orchestration of existing steps
 Streaming: web events -> Kafka -> Python consumer -> raw -> bronze -> quality
-                                                      ├── silver
+                                                      ├── silver -> warehouse_source.web_events -> dbt
                                                       └── rejected + audit
 Dashboard: outside v1.0
 ```
@@ -132,7 +138,7 @@ Comprueba completitud, unicidad, dominios permitidos, importes y claves foránea
 
 `silver` contiene solo registros que superan las reglas de calidad.
 
-Es la única entrada del warehouse analítico en v1.0.
+Es la única entrada del warehouse analítico tanto para tablas batch como para eventos.
 
 ### 7. Rejected
 
@@ -146,9 +152,9 @@ No alimenta marts porque podría contaminar métricas de negocio. Su uso es diag
 
 ### 9. Warehouse source
 
-`warehouse_source` expone en PostgreSQL las seis tablas silver para dbt.
+`warehouse_source` expone en PostgreSQL las seis tablas batch silver y `web_events` para dbt.
 
-La carga es full refresh / replace en v1.0.
+Las tablas batch usan full refresh / replace. `web_events` usa append transaccional con `event_id` como clave de conflicto, por lo que repetir el mismo `run_id` no duplica eventos.
 
 ### 10. dbt staging
 
@@ -163,8 +169,10 @@ Los marts iniciales son:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
-`fact_sales` tiene grano de línea de pedido. `fact_inventory` tiene grano de producto.
+`fact_sales` tiene grano de línea de pedido, `fact_inventory` de producto, `fact_web_events` de evento y `fact_web_sessions` de sesión.
 
 ### 12. Airflow
 
@@ -172,9 +180,9 @@ Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica 
 
 ### 13. Streaming Kafka v2.0
 
-Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL. Un paso posterior aplana cada sobre raw y escribe un Parquet bronze por `run_id`, conservando la trazabilidad al fichero de origen. La validación procesa conjuntamente los ficheros seleccionados y separa eventos silver y rejected, con auditoría por `run_id`.
+Un producer Python usa clientes y productos existentes en PostgreSQL para publicar eventos web sintéticos en las tres particiones de `retailpulse.web_events`, usando `session_id` como message key. Cada sesión conserva un único cliente o permanece anónima. Uno o varios consumers del mismo grupo pueden repartirse las particiones y conservan el payload y los metadatos `topic`, `partition`, `offset`, `timestamp` y `key` en raw JSONL. Un paso posterior aplana cada sobre raw y escribe un Parquet bronze por `run_id`, conservando la trazabilidad al fichero de origen. La validación separa eventos silver y rejected, con auditoría por `run_id`. Solo silver aprobado se añade de forma idempotente a `warehouse_source.web_events`; dbt lo transforma en hechos de evento y sesión.
 
-Esta vertical usa tres nodos combinados KRaft, tres particiones, factor de replicación tres y mínimo de dos réplicas sincronizadas. Permite demostrar distribución, consumer groups, failover, capas raw/bronze y calidad silver/rejected, pero todavía no está orquestada por Airflow ni conectada al warehouse o a dbt.
+Esta vertical usa tres nodos combinados KRaft, tres particiones, factor de replicación tres y mínimo de dos réplicas sincronizadas. Permite demostrar distribución, consumer groups, failover, capas lake, calidad, carga incremental y modelado dbt, pero todavía no está orquestada por Airflow.
 
 ## ES — Por qué rejected no entra al warehouse analítico
 
@@ -224,6 +232,9 @@ flowchart TD
     event_quality[Python event quality]
     event_silver[silver Parquet]
     event_rejected[rejected Parquet]
+    event_warehouse[(warehouse_source.web_events)]
+    event_staging[dbt stg_web_events]
+    event_marts[dbt web-event marts]
 
     source --> ingestion
     ingestion --> raw
@@ -248,6 +259,9 @@ flowchart TD
     event_bronze --> event_quality
     event_quality --> event_silver
     event_quality --> event_rejected
+    event_silver --> event_warehouse
+    event_warehouse --> event_staging
+    event_staging --> event_marts
 ```
 
 Text version:
@@ -262,7 +276,7 @@ PostgreSQL source -> Python ingestion
 
 Airflow: orchestration of existing steps
 Streaming: web events -> Kafka -> Python consumer -> raw -> bronze -> quality
-                                                      ├── silver
+                                                      ├── silver -> warehouse_source.web_events -> dbt
                                                       └── rejected + audit
 Dashboard: outside v1.0
 ```
@@ -325,7 +339,7 @@ It checks completeness, uniqueness, accepted domains, amounts and simple foreign
 
 `silver` contains only records that passed all quality checks.
 
-It is the only input to the analytical warehouse in v1.0.
+It is the only input to the analytical warehouse for both batch tables and events.
 
 ### 7. Rejected
 
@@ -339,9 +353,9 @@ It does not feed marts because it could contaminate business metrics. Its purpos
 
 ### 9. Warehouse source
 
-`warehouse_source` exposes the six silver tables in PostgreSQL for dbt.
+`warehouse_source` exposes the six batch silver tables and `web_events` in PostgreSQL for dbt.
 
-The v1.0 load uses full refresh / replace.
+Batch tables use full refresh / replace. `web_events` uses transactional append with `event_id` as the conflict key, so loading the same `run_id` again does not duplicate events.
 
 ### 10. dbt staging
 
@@ -356,8 +370,10 @@ Initial marts:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
-`fact_sales` is at order-item grain. `fact_inventory` is at product grain.
+`fact_sales` is at order-item grain, `fact_inventory` at product grain, `fact_web_events` at event grain and `fact_web_sessions` at session grain.
 
 ### 12. Airflow
 
@@ -365,9 +381,9 @@ Airflow orchestrates the full flow with a local manual DAG. It does not contain 
 
 ### 13. Kafka streaming v2.0
 
-A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL. A later step flattens each raw envelope and writes one bronze Parquet file per `run_id`, preserving traceability to the source file. Validation processes selected files together and separates silver and rejected events, with audit records per `run_id`.
+A Python producer uses existing PostgreSQL customers and products to publish synthetic web events across the three partitions of `retailpulse.web_events`, with `session_id` as the message key. Each session keeps one customer or remains anonymous. One or more consumers in the same group can divide the partitions and preserve the payload and the `topic`, `partition`, `offset`, `timestamp` and `key` metadata in raw JSONL. A later step flattens each raw envelope and writes one bronze Parquet file per `run_id`, preserving traceability to the source file. Validation separates silver and rejected events, with audit records per `run_id`. Only approved silver is appended idempotently to `warehouse_source.web_events`; dbt transforms it into event and session facts.
 
-This vertical uses three combined KRaft nodes, three partitions, replication factor three and a minimum of two in-sync replicas. It demonstrates distribution, consumer groups, failover, raw/bronze layers and silver/rejected quality, but is not yet orchestrated by Airflow or connected to the warehouse or dbt.
+This vertical uses three combined KRaft nodes, three partitions, replication factor three and a minimum of two in-sync replicas. It demonstrates distribution, consumer groups, failover, lake layers, quality, incremental loading and dbt modeling, but is not yet orchestrated by Airflow.
 
 ## EN — Why rejected does not enter the analytical warehouse
 

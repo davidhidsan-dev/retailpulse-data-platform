@@ -184,7 +184,9 @@ def validate_bronze_event_metadata(
             f"web_events source_file must be {expected_source_file!r}"
         )
     ingested_at = dataframe["ingested_at"]
-    parsed_ingested_at = pd.to_datetime(ingested_at, errors="coerce", utc=True)
+    parsed_ingested_at = pd.to_datetime(
+        ingested_at, errors="coerce", utc=True, format="mixed"
+    )
     if parsed_ingested_at.isna().any():
         raise ValueError("web_events bronze must have valid ingested_at values")
     return str(ingestion_ids.iloc[0])
@@ -280,7 +282,7 @@ def validate_web_event_rows(
         "occurred_at must be a valid UTC timestamp",
     )
     parsed_occurred_at = pd.to_datetime(
-        working["occurred_at"], errors="coerce", utc=True
+        working["occurred_at"], errors="coerce", utc=True, format="mixed"
     )
     reject(
         parsed_occurred_at.notna()
@@ -346,9 +348,11 @@ def validate_web_event_rows(
     valid = working.loc[~rejected_mask].copy()
     rejected = working.loc[rejected_mask].copy()
 
-    valid["occurred_at"] = pd.to_datetime(valid["occurred_at"], utc=True)
+    valid["occurred_at"] = pd.to_datetime(
+        valid["occurred_at"], utc=True, format="mixed"
+    )
     valid["kafka_timestamp"] = pd.to_datetime(
-        valid["kafka_timestamp"], utc=True
+        valid["kafka_timestamp"], utc=True, format="mixed"
     )
     valid["customer_id"] = pd.to_numeric(
         valid["customer_id"], errors="raise"

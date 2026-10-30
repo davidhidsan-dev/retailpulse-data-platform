@@ -11,3 +11,5 @@ sources:
       - name: orders
       - name: order_items
       - name: payments
+      - name: web_events
+        description: Quality-approved Kafka web events loaded incrementally from silver.

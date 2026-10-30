@@ -202,6 +202,24 @@ Append sin control.
 
 No conserva histórico ni demuestra incrementalidad.
 
+## ES — TD-012 Append idempotente para eventos
+
+### Contexto
+
+Los eventos son datos acumulativos y reemplazar toda la tabla borraría ejecuciones anteriores.
+
+### Decisión
+
+Añadir silver aprobado a `warehouse_source.web_events` y usar `event_id` como clave primaria con `ON CONFLICT DO NOTHING`.
+
+### Alternativa simple
+
+Aplicar el mismo full refresh del pipeline batch.
+
+### Limitación
+
+Un `event_id` existente se trata como replay y no actualiza su payload. No hay particionado ni estrategia de corrección histórica.
+
 ---
 
 ## EN — Objective
@@ -405,3 +423,21 @@ Append without control.
 ### Limitation
 
 It does not preserve history or demonstrate incremental loading.
+
+## EN — TD-012 Idempotent event append
+
+### Context
+
+Events are cumulative data, and replacing the whole table would remove earlier runs.
+
+### Decision
+
+Append approved silver to `warehouse_source.web_events` and use `event_id` as the primary key with `ON CONFLICT DO NOTHING`.
+
+### Simple alternative
+
+Use the same full refresh as the batch pipeline.
+
+### Limitation
+
+An existing `event_id` is treated as a replay and does not update its payload. There is no physical partitioning or historical-correction strategy.

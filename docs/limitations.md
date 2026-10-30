@@ -2,7 +2,7 @@
 
 ## ES — Objetivo
 
-Este documento resume las limitaciones conocidas de RetailPulse v1.0 para evitar vender el proyecto como algo que todavía no es.
+Este documento resume las limitaciones conocidas del pipeline batch v1.0 y la vertical streaming v2.0 para evitar vender el proyecto como algo que todavía no es.
 
 ## ES — Datos sintéticos
 
@@ -14,9 +14,9 @@ Implicaciones:
 - no sirven para conclusiones comerciales reales.
 - sí sirven para demostrar diseño de pipeline, calidad, modelado y orquestación.
 
-## ES — Pipeline batch y local
+## ES — Pipeline local
 
-El pipeline es batch y se ejecuta en local.
+El pipeline batch y la vertical streaming se ejecutan en local. El consumer Kafka procesa lotes finitos, no un servicio continuo.
 
 No incluye:
 
@@ -63,12 +63,13 @@ Limitaciones:
 
 ## ES — Warehouse
 
-La carga a `warehouse_source` usa full refresh / replace.
+Las tablas batch de `warehouse_source` usan full refresh / replace. `web_events` usa append con deduplicación por `event_id`.
 
 Limitaciones:
 
 - no conserva histórico de snapshots.
-- no hay merge incremental.
+- no hay merge incremental para las tablas batch.
+- un `event_id` repetido se ignora; no existe actualización de eventos ya almacenados.
 - no hay SCD.
 - no hay particionado físico de warehouse.
 
@@ -98,13 +99,12 @@ Limitaciones:
 - sin backfills avanzados.
 - sin gestión productiva de usuarios y permisos.
 
-## ES — Herramientas fuera de v1.0
+## ES — Herramientas fuera del alcance actual
 
 No forman parte de v1.0:
 
 - dashboard.
 - Spark.
-- Kafka.
 - MongoDB.
 - ML.
 - GenAI.
@@ -117,13 +117,13 @@ Estas tecnologías solo deberían añadirse después si resuelven un problema co
 
 El mayor riesgo del proyecto no es que falten herramientas, sino añadir demasiadas antes de cerrar bien el flujo actual.
 
-La prioridad de v1.0 es que el pipeline sea claro, reproducible y explicable.
+La prioridad es que ambos flujos sean claros, reproducibles y explicables.
 
 ---
 
 ## EN — Objective
 
-This document summarizes the known limitations of RetailPulse v1.0 to avoid presenting the project as something it is not yet.
+This document summarizes the known limitations of the v1.0 batch pipeline and v2.0 streaming vertical to avoid presenting the project as something it is not yet.
 
 ## EN — Synthetic data
 
@@ -135,9 +135,9 @@ Implications:
 - it should not be used for real business conclusions.
 - it is useful to demonstrate pipeline design, quality, modeling and orchestration.
 
-## EN — Local batch pipeline
+## EN — Local pipeline
 
-The pipeline is batch and runs locally.
+The batch pipeline and streaming vertical run locally. The Kafka consumer processes finite batches rather than a continuous service.
 
 It does not include:
 
@@ -184,12 +184,13 @@ Limitations:
 
 ## EN — Warehouse
 
-Loading into `warehouse_source` uses full refresh / replace.
+Batch tables in `warehouse_source` use full refresh / replace. `web_events` uses append with `event_id` deduplication.
 
 Limitations:
 
 - no snapshot history.
-- no incremental merge.
+- no incremental merge for batch tables.
+- a repeated `event_id` is ignored; stored events are not updated.
 - no SCD.
 - no physical warehouse partitioning.
 
@@ -219,13 +220,12 @@ Limitations:
 - no advanced backfills.
 - no production user and permission management.
 
-## EN — Tools outside v1.0
+## EN — Tools outside the current scope
 
-The following are not part of v1.0:
+The following are not part of the current scope:
 
 - dashboard.
 - Spark.
-- Kafka.
 - MongoDB.
 - ML.
 - GenAI.
@@ -238,4 +238,4 @@ These technologies should only be added later if they solve a specific documente
 
 The main project risk is not missing tools, but adding too many before closing the current flow properly.
 
-The v1.0 priority is for the pipeline to be clear, reproducible and explainable.
+The priority is for both flows to be clear, reproducible and explainable.
