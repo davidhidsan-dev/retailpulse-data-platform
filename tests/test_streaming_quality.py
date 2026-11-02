@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,9 +11,14 @@ import pytest
 
 from src.streaming.consume_web_events import (
     ConsumedKafkaMessage,
+    build_raw_event_path,
     write_raw_messages,
 )
-from src.streaming.raw_to_bronze import convert_raw_events_to_bronze
+from src.streaming.raw_to_bronze import (
+    RAW_VALUE_COLUMN_BY_FIELD,
+    RAW_VALUE_COLUMNS,
+    convert_raw_events_to_bronze,
+)
 from src.streaming.validate_web_events import (
     build_event_quality_path,
     build_streaming_audit_path,
@@ -111,6 +117,7 @@ def test_invalid_business_and_transport_fields_move_to_rejected(
     bronze = pd.read_parquet(bronze_path)
     bronze.loc[0, "event_type"] = "checkout"
     bronze.loc[0, "product_id"] = -10
+    bronze.loc[0, RAW_VALUE_COLUMN_BY_FIELD["product_id"]] = "-10"
     bronze.loc[0, "kafka_key"] = "another-session"
     bronze.to_parquet(bronze_path, index=False)
 
@@ -163,6 +170,9 @@ def test_kafka_position_duplicates_are_detected_within_one_run(
             0, ["kafka_topic", "kafka_partition", "kafka_offset"]
         ].to_numpy()
     )
+    for column in ("kafka_partition", "kafka_offset"):
+        raw_column = RAW_VALUE_COLUMN_BY_FIELD[column]
+        bronze.loc[1, raw_column] = bronze.loc[0, raw_column]
     bronze.to_parquet(bronze_path, index=False)
 
     result = _validate(tmp_path, "run-a")[0]
@@ -180,6 +190,7 @@ def test_null_customer_is_valid_but_event_date_mismatch_is_rejected(
     bronze_path = _write_bronze_run(tmp_path, run_id="run-a", seed=42)
     bronze = pd.read_parquet(bronze_path)
     bronze["customer_id"] = pd.Series([pd.NA, 1], dtype="Int64")
+    bronze[RAW_VALUE_COLUMN_BY_FIELD["customer_id"]] = ["null", "1"]
     bronze.loc[1, "occurred_at"] = "2026-01-02T00:00:00Z"
     bronze.to_parquet(bronze_path, index=False)
 
@@ -191,6 +202,147 @@ def test_null_customer_is_valid_but_event_date_mismatch_is_rejected(
     assert silver["customer_id"].isna().all()
     assert rejected["rejection_reason"].str.contains(
         "occurred_at does not match event_date partition"
+    ).all()
+
+
+def test_quality_builds_integer_columns_from_original_json_values(
+    tmp_path: Path,
+) -> None:
+    bronze_path = _write_bronze_run(tmp_path, run_id="run-a", seed=42)
+    bronze = pd.read_parquet(bronze_path)
+    expected = {
+        "customer_id": [None, 2_147_483_647],
+        "product_id": [10, 2_147_483_647],
+        "kafka_partition": [0, 2_147_483_647],
+        "kafka_offset": [0, 9_223_372_036_854_775_807],
+    }
+    for column, values in expected.items():
+        bronze[RAW_VALUE_COLUMN_BY_FIELD[column]] = [
+            json.dumps(value) for value in values
+        ]
+        # An inconsistent numeric copy must not change approved values or
+        # create a false duplicate Kafka position.
+        bronze[column] = 999
+    bronze.to_parquet(bronze_path, index=False)
+
+    result = _validate(tmp_path, "run-a")[0]
+
+    assert (result.valid_rows, result.rejected_rows) == (2, 0)
+    silver = pd.read_parquet(result.silver_path)
+    for column, values in expected.items():
+        dtype = "Int64" if column == "customer_id" else "int64"
+        pd.testing.assert_series_equal(
+            silver[column], pd.Series(values, name=column, dtype=dtype)
+        )
+
+
+@pytest.mark.parametrize(
+    ("column", "raw_value"),
+    [
+        ("product_id", "0"),
+        ("product_id", "2147483648"),
+        ("customer_id", "true"),
+        ("customer_id", "2147483648"),
+        ("kafka_partition", "-1"),
+        ("kafka_offset", "9223372036854775808"),
+    ],
+)
+def test_invalid_raw_integer_values_are_rejected(
+    tmp_path: Path, column: str, raw_value: str,
+) -> None:
+    bronze_path = _write_bronze_run(
+        tmp_path, run_id="run-a", seed=42, count=1
+    )
+    bronze = pd.read_parquet(bronze_path)
+    raw_column = RAW_VALUE_COLUMN_BY_FIELD[column]
+    bronze[raw_column] = raw_value
+    bronze.to_parquet(bronze_path, index=False)
+
+    result = _validate(tmp_path, "run-a")[0]
+
+    assert (result.valid_rows, result.rejected_rows) == (0, 1)
+    rejected = pd.read_parquet(result.rejected_path)
+    assert rejected.loc[0, raw_column] == raw_value
+    assert f"{column} must be" in rejected.loc[0, "rejection_reason"]
+
+
+def test_invalid_json_id_types_reach_rejected_without_coercion(
+    tmp_path: Path,
+) -> None:
+    run_id = "raw-id-types"
+    raw_path = build_raw_event_path(
+        datetime.fromisoformat(EVENT_DATE).date(), run_id, tmp_path
+    )
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    product_values = [10, True, 1.0, "01", "bad-id", 1.5]
+    envelopes = []
+    for position, product_id in enumerate(product_values):
+        session_id = f"session-{position}"
+        envelopes.append(
+            {
+                "kafka": {
+                    "topic": "retailpulse.web_events",
+                    "partition": 0,
+                    "offset": position,
+                    "timestamp": "2026-01-01T12:00:00Z",
+                    "key": session_id,
+                },
+                "payload": {
+                    "event_id": (
+                        f"00000000-0000-0000-0000-{position + 1:012d}"
+                    ),
+                    "event_type": "product_view",
+                    "occurred_at": "2026-01-01T12:00:00Z",
+                    "session_id": session_id,
+                    "customer_id": 1,
+                    "product_id": product_id,
+                },
+            }
+        )
+    raw_path.write_text(
+        "".join(
+            json.dumps(envelope, separators=(",", ":")) + "\n"
+            for envelope in envelopes
+        ),
+        encoding="utf-8",
+    )
+
+    bronze_result = convert_raw_events_to_bronze(
+        EVENT_DATE,
+        data_root=tmp_path,
+        run_id=run_id,
+        ingestion_id="raw-types-ingestion",
+        ingested_at="2026-01-01T12:05:00Z",
+    )[0]
+    bronze = pd.read_parquet(bronze_result.bronze_path)
+
+    assert bronze["product_id"].tolist()[0] == 10
+    assert bronze["product_id"].iloc[1:].isna().all()
+    assert bronze["product_id_raw_value"].tolist() == [
+        "10",
+        "true",
+        "1.0",
+        '"01"',
+        '"bad-id"',
+        "1.5",
+    ]
+
+    result = _validate(tmp_path, run_id)[0]
+    silver = pd.read_parquet(result.silver_path)
+    rejected = pd.read_parquet(result.rejected_path)
+
+    assert (result.valid_rows, result.rejected_rows) == (1, 5)
+    assert silver["product_id"].tolist() == [10]
+    assert set(RAW_VALUE_COLUMNS).isdisjoint(silver.columns)
+    assert rejected["product_id_raw_value"].tolist() == [
+        "true",
+        "1.0",
+        '"01"',
+        '"bad-id"',
+        "1.5",
+    ]
+    assert rejected["rejection_reason"].str.contains(
+        "product_id must be a positive PostgreSQL INTEGER"
     ).all()
 
 

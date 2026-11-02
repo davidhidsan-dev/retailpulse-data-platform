@@ -35,6 +35,16 @@ EVENT_COLUMNS = (
     "kafka_timestamp",
     "kafka_key",
 )
+RAW_INTEGER_COLUMNS = (
+    "customer_id",
+    "product_id",
+    "kafka_partition",
+    "kafka_offset",
+)
+RAW_VALUE_COLUMNS = tuple(
+    f"{column}_raw_value" for column in RAW_INTEGER_COLUMNS
+)
+RAW_VALUE_COLUMN_BY_FIELD = dict(zip(RAW_INTEGER_COLUMNS, RAW_VALUE_COLUMNS))
 BRONZE_METADATA_COLUMNS = (
     "ingestion_id",
     "ingested_at",
@@ -42,6 +52,8 @@ BRONZE_METADATA_COLUMNS = (
     "source_table",
     "source_file",
 )
+SIGNED_BIGINT_MIN = -(2**63)
+SIGNED_BIGINT_MAX = 2**63 - 1
 
 
 @dataclass(frozen=True)
@@ -136,7 +148,7 @@ def _flatten_raw_envelope(
             f"{source_path}:{line_number} must contain payload and kafka objects"
         )
 
-    return {
+    row = {
         "event_id": payload.get("event_id"),
         "event_type": payload.get("event_type"),
         "occurred_at": payload.get("occurred_at"),
@@ -149,6 +161,22 @@ def _flatten_raw_envelope(
         "kafka_timestamp": kafka.get("timestamp"),
         "kafka_key": kafka.get("key"),
     }
+    for column, raw_column in RAW_VALUE_COLUMN_BY_FIELD.items():
+        row[raw_column] = json.dumps(
+            row[column], ensure_ascii=False, separators=(",", ":")
+        )
+    return row
+
+
+def _normalize_raw_integer(raw_value: str) -> object:
+    """Return an exact JSON integer when it fits Parquet's signed int64."""
+    value = json.loads(raw_value)
+    if (
+        type(value) is int
+        and SIGNED_BIGINT_MIN <= value <= SIGNED_BIGINT_MAX
+    ):
+        return value
+    return pd.NA
 
 
 def read_raw_event_file(source_path: Path | str) -> pd.DataFrame:
@@ -172,14 +200,15 @@ def read_raw_event_file(source_path: Path | str) -> pd.DataFrame:
                     line_number=line_number,
                 )
             )
-    dataframe = pd.DataFrame.from_records(rows, columns=EVENT_COLUMNS)
-    for column in (
-        "customer_id",
-        "product_id",
-        "kafka_partition",
-        "kafka_offset",
-    ):
-        dataframe[column] = pd.array(dataframe[column], dtype="Int64")
+    dataframe = pd.DataFrame.from_records(
+        rows,
+        columns=[*EVENT_COLUMNS, *RAW_VALUE_COLUMNS],
+    )
+    for column, raw_column in RAW_VALUE_COLUMN_BY_FIELD.items():
+        dataframe[column] = pd.array(
+            dataframe[raw_column].map(_normalize_raw_integer),
+            dtype="Int64",
+        )
     return dataframe
 
 

@@ -3,29 +3,31 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from numbers import Integral, Number
+from numbers import Number
 from pathlib import Path
 from uuid import UUID, uuid4
 
-import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
 from src.quality.rules import (
+    POSTGRES_INTEGER_MAX,
     blank_values,
     duplicate_values,
-    invalid_positive_integers,
     null_values,
     values_not_in,
 )
 from src.streaming.raw_to_bronze import (
     BRONZE_METADATA_COLUMNS,
     EVENT_COLUMNS,
+    RAW_VALUE_COLUMN_BY_FIELD,
+    RAW_VALUE_COLUMNS,
     SOURCE_SYSTEM,
     SOURCE_TABLE,
     RUN_ID_PATTERN,
@@ -38,8 +40,10 @@ from src.utils.paths import DEFAULT_DATA_ROOT
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_TOPIC = "retailpulse.web_events"
+POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807
 QUALITY_METADATA_COLUMNS = ("quality_run_id", "quality_checked_at")
 INTERNAL_RUN_ID_COLUMN = "_bronze_run_id"
+INVALID_RAW_VALUE = object()
 AUDIT_COLUMNS = (
     "quality_run_id",
     "quality_checked_at",
@@ -148,7 +152,10 @@ def _run_id_from_bronze_path(path: Path) -> str:
 
 
 def _ensure_bronze_columns(dataframe: pd.DataFrame) -> None:
-    required = set(EVENT_COLUMNS).union(BRONZE_METADATA_COLUMNS)
+    required = set(EVENT_COLUMNS).union(
+        RAW_VALUE_COLUMNS,
+        BRONZE_METADATA_COLUMNS,
+    )
     missing = required.difference(dataframe.columns)
     if missing:
         raise ValueError(
@@ -220,20 +227,13 @@ def _invalid_utc_timestamps(dataframe: pd.DataFrame, column: str) -> pd.Series:
     return dataframe[column].map(is_invalid)
 
 
-def _invalid_non_negative_integers(
-    dataframe: pd.DataFrame,
-    column: str,
-) -> pd.Series:
-    def is_invalid(value: object) -> bool:
-        if pd.isna(value):
-            return False
-        return not (
-            isinstance(value, Integral)
-            and not isinstance(value, (bool, np.bool_))
-            and int(value) >= 0
-        )
-
-    return dataframe[column].astype(object).map(is_invalid)
+def _decode_raw_value(value: object) -> object:
+    if not isinstance(value, str):
+        return INVALID_RAW_VALUE
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return INVALID_RAW_VALUE
 
 
 def validate_web_event_rows(
@@ -290,26 +290,58 @@ def validate_web_event_rows(
         "occurred_at does not match event_date partition",
     )
 
-    reject(null_values(working, "product_id"), "product_id is null")
-    reject(
-        invalid_positive_integers(working, "product_id"),
-        "product_id must be a positive PostgreSQL INTEGER",
-    )
-    reject(
-        invalid_positive_integers(working, "customer_id"),
-        "customer_id must be null or a positive PostgreSQL INTEGER",
-    )
+    integer_contracts = {
+        "product_id": (
+            1, POSTGRES_INTEGER_MAX,
+            "product_id must be a positive PostgreSQL INTEGER",
+        ),
+        "customer_id": (
+            1, POSTGRES_INTEGER_MAX,
+            "customer_id must be null or a positive PostgreSQL INTEGER",
+        ),
+        "kafka_partition": (
+            0, POSTGRES_INTEGER_MAX,
+            "kafka_partition must be a non-negative PostgreSQL INTEGER",
+        ),
+        "kafka_offset": (
+            0, POSTGRES_BIGINT_MAX,
+            "kafka_offset must be a non-negative PostgreSQL BIGINT",
+        ),
+    }
+    for column, (minimum, maximum, reason) in integer_contracts.items():
+        # Keep decoded JSON scalars in a list: pandas inference can turn
+        # integers into floats when a column also contains nulls.
+        values = [
+            _decode_raw_value(value)
+            for value in working[RAW_VALUE_COLUMN_BY_FIELD[column]]
+        ]
+        valid_integers = [
+            type(value) is int and minimum <= value <= maximum
+            for value in values
+        ]
+        if column != "customer_id":
+            reject(
+                pd.Series([value is None for value in values], index=working.index),
+                f"{column} is null",
+            )
+        reject(
+            pd.Series(
+                [value is not None and not valid
+                 for value, valid in zip(values, valid_integers)],
+                index=working.index,
+            ),
+            reason,
+        )
+        working[column] = pd.array(
+            [value if valid else None
+             for value, valid in zip(values, valid_integers)],
+            dtype="Int64",
+        )
 
     reject(
         working["kafka_topic"].ne(expected_topic),
         "kafka_topic is not the configured topic",
     )
-    for column in ("kafka_partition", "kafka_offset"):
-        reject(null_values(working, column), f"{column} is null")
-        reject(
-            _invalid_non_negative_integers(working, column),
-            f"{column} must be a non-negative integer",
-        )
     reject(null_values(working, "kafka_timestamp"), "kafka_timestamp is null")
     reject(
         _invalid_utc_timestamps(working, "kafka_timestamp"),
@@ -347,6 +379,7 @@ def validate_web_event_rows(
     rejected_mask = rejection_reason.str.len().gt(0)
     valid = working.loc[~rejected_mask].copy()
     rejected = working.loc[rejected_mask].copy()
+    valid = valid.drop(columns=list(RAW_VALUE_COLUMNS))
 
     valid["occurred_at"] = pd.to_datetime(
         valid["occurred_at"], utc=True, format="mixed"
@@ -354,11 +387,8 @@ def validate_web_event_rows(
     valid["kafka_timestamp"] = pd.to_datetime(
         valid["kafka_timestamp"], utc=True, format="mixed"
     )
-    valid["customer_id"] = pd.to_numeric(
-        valid["customer_id"], errors="raise"
-    ).astype("Int64")
     for column in ("product_id", "kafka_partition", "kafka_offset"):
-        valid[column] = pd.to_numeric(valid[column], errors="raise").astype("int64")
+        valid[column] = valid[column].astype("int64")
 
     valid["quality_run_id"] = run_id
     valid["quality_checked_at"] = checked_at

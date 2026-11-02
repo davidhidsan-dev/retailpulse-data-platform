@@ -14,6 +14,7 @@ import pandas as pd
 
 from src.streaming.consume_web_events import build_raw_event_path
 from src.streaming.raw_to_bronze import (
+    RAW_VALUE_COLUMN_BY_FIELD,
     RUN_ID_PATTERN,
     build_bronze_event_path,
     resolve_event_date,
@@ -90,11 +91,19 @@ def inject_streaming_demo_anomalies(
     demo = dataframe.copy().reset_index(drop=True)
     demo.at[0, "event_type"] = "unknown_event"
     demo.at[1, "product_id"] = -10
+    demo.at[1, RAW_VALUE_COLUMN_BY_FIELD["product_id"]] = "-10"
     demo.at[2, "occurred_at"] = (
         pd.Timestamp(resolved_date, tz="UTC") + pd.Timedelta(days=1)
     ).isoformat().replace("+00:00", "Z")
     position_columns = ["kafka_topic", "kafka_partition", "kafka_offset"]
     demo.loc[3, position_columns] = demo.loc[4, position_columns].to_numpy()
+    raw_position_columns = [
+        RAW_VALUE_COLUMN_BY_FIELD["kafka_partition"],
+        RAW_VALUE_COLUMN_BY_FIELD["kafka_offset"],
+    ]
+    demo.loc[3, raw_position_columns] = demo.loc[
+        4, raw_position_columns
+    ].to_numpy()
     return demo
 
 

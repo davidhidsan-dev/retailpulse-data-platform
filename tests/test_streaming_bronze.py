@@ -15,6 +15,7 @@ from src.streaming.consume_web_events import (
 from src.streaming.raw_to_bronze import (
     BRONZE_METADATA_COLUMNS,
     EVENT_COLUMNS,
+    RAW_VALUE_COLUMNS,
     build_bronze_event_path,
     convert_raw_events_to_bronze,
     parse_args,
@@ -95,12 +96,20 @@ def test_raw_event_conversion_preserves_payload_and_kafka_metadata(
     assert result.raw_path == raw_path
     assert result.row_count == 1
     bronze = pd.read_parquet(result.bronze_path)
-    assert list(bronze.columns) == [*EVENT_COLUMNS, *BRONZE_METADATA_COLUMNS]
+    assert list(bronze.columns) == [
+        *EVENT_COLUMNS,
+        *RAW_VALUE_COLUMNS,
+        *BRONZE_METADATA_COLUMNS,
+    ]
     assert bronze.loc[0, "event_id"]
     assert bronze.loc[0, "kafka_topic"] == "retailpulse.web_events"
     assert bronze.loc[0, "kafka_partition"] == 0
     assert bronze.loc[0, "kafka_offset"] == 17
     assert bronze.loc[0, "kafka_key"] == bronze.loc[0, "session_id"]
+    assert bronze.loc[0, "customer_id_raw_value"] in {"1", "2"}
+    assert bronze.loc[0, "product_id_raw_value"] in {"10", "20"}
+    assert bronze.loc[0, "kafka_partition_raw_value"] == "0"
+    assert bronze.loc[0, "kafka_offset_raw_value"] == "17"
     assert bronze.loc[0, "ingestion_id"] == INGESTION_ID
     assert bronze.loc[0, "source_system"] == "kafka"
     assert bronze.loc[0, "source_table"] == "web_events"

@@ -88,6 +88,10 @@ El proyecto usa datos sintéticos, por lo que las descripciones explican el cont
 | `kafka_offset` | Posición del mensaje dentro de su partición. | bronze |
 | `kafka_timestamp` | Timestamp `CreateTime` conservado por Kafka. | bronze |
 | `kafka_key` | Key del mensaje; en este flujo coincide con `session_id`. | bronze |
+| `customer_id_raw_value` | Escalar JSON original de `customer_id` antes de normalizarlo. | bronze / rejected |
+| `product_id_raw_value` | Escalar JSON original de `product_id` antes de normalizarlo. | bronze / rejected |
+| `kafka_partition_raw_value` | Escalar JSON original de la partición antes de normalizarlo. | bronze / rejected |
+| `kafka_offset_raw_value` | Escalar JSON original del offset antes de normalizarlo. | bronze / rejected |
 
 ## ES — Columnas técnicas de bronze
 
@@ -106,7 +110,7 @@ El proyecto usa datos sintéticos, por lo que las descripciones explican el cont
 | `quality_run_id` | UUID de la validación de calidad. |
 | `quality_checked_at` | Timestamp UTC de validación. |
 
-Silver conserva también las columnas técnicas de bronze.
+Silver conserva los metadatos de ingesta de bronze, pero no sus columnas `*_raw_value` de diagnóstico.
 
 ## ES — Columnas técnicas de rejected
 
@@ -247,6 +251,10 @@ The project uses synthetic data, so descriptions explain the technical and analy
 | `kafka_offset` | Message position within its partition. | bronze |
 | `kafka_timestamp` | Kafka-preserved `CreateTime` timestamp. | bronze |
 | `kafka_key` | Message key; it matches `session_id` in this flow. | bronze |
+| `customer_id_raw_value` | Original JSON scalar for `customer_id` before normalization. | bronze / rejected |
+| `product_id_raw_value` | Original JSON scalar for `product_id` before normalization. | bronze / rejected |
+| `kafka_partition_raw_value` | Original JSON scalar for the partition before normalization. | bronze / rejected |
+| `kafka_offset_raw_value` | Original JSON scalar for the offset before normalization. | bronze / rejected |
 
 ## EN — Bronze technical columns
 
@@ -265,7 +273,7 @@ The project uses synthetic data, so descriptions explain the technical and analy
 | `quality_run_id` | Quality validation UUID. |
 | `quality_checked_at` | UTC validation timestamp. |
 
-Silver also keeps bronze technical columns.
+Silver keeps bronze ingestion metadata, but not its diagnostic `*_raw_value` columns.
 
 ## EN — Rejected technical columns
 

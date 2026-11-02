@@ -81,7 +81,7 @@ La conversión a bronze lee esos sobres, aplana el payload y los metadatos Kafka
 data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 ```
 
-Cada fichero raw se corresponde con un fichero bronze del mismo `run_id`. Además de las columnas del evento, bronze conserva `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` y `kafka_key`, y añade `ingestion_id`, `ingested_at`, `source_system`, `source_table` y `source_file`. Esta transformación es estructural: todavía no aprueba ni rechaza eventos por reglas de negocio.
+Cada fichero raw se corresponde con un fichero bronze del mismo `run_id`. Además de las columnas del evento, bronze conserva `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` y `kafka_key`, y añade `ingestion_id`, `ingested_at`, `source_system`, `source_table` y `source_file`. Los cuatro campos enteros conservan también un `*_raw_value` con su escalar JSON original. Así `true`, `1.0`, `"01"` o `"bad-id"` llegan a calidad sin convertirse silenciosamente ni bloquear Parquet. Esta transformación es estructural: todavía no aprueba ni rechaza eventos por reglas de negocio.
 
 ## ES — Calidad y publicación de eventos
 
@@ -104,7 +104,7 @@ data/rejected/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>_rejecte
 data/audit/streaming_quality_runs.parquet
 ```
 
-Silver añade `quality_run_id` y `quality_checked_at`. Rejected añade además `rejection_reason`. La auditoría registra conteos y estado por fichero; un contrato técnico bronze inválido bloquea la publicación de ese fichero y queda registrado como `failed`.
+Silver añade `quality_run_id` y `quality_checked_at` y publica los enteros ya normalizados. Calidad valida una sola vez el tipo y rango de cada `*_raw_value` y reconstruye desde esos valores las columnas enteras. Las columnas `*_raw_value` se conservan únicamente en bronze y rejected para diagnóstico. Rejected añade además `rejection_reason`. La auditoría registra conteos y estado por fichero; un contrato técnico bronze inválido bloquea la publicación de ese fichero y queda registrado como `failed`.
 
 ## ES — Warehouse y dbt
 
@@ -290,7 +290,7 @@ Bronze conversion reads those envelopes, flattens the payload and Kafka metadata
 data/bronze/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>.parquet
 ```
 
-Each raw file maps to one bronze file with the same `run_id`. In addition to event columns, bronze keeps `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` and `kafka_key`, and adds `ingestion_id`, `ingested_at`, `source_system`, `source_table` and `source_file`. This is a structural transformation: it does not yet approve or reject events through business rules.
+Each raw file maps to one bronze file with the same `run_id`. In addition to event columns, bronze keeps `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp` and `kafka_key`, and adds `ingestion_id`, `ingested_at`, `source_system`, `source_table` and `source_file`. The four integer fields also keep a `*_raw_value` containing their original JSON scalar. This lets `true`, `1.0`, `"01"` or `"bad-id"` reach quality without silent coercion or a Parquet failure. This is a structural transformation: it does not yet approve or reject events through business rules.
 
 ## EN — Event quality and publication
 
@@ -313,7 +313,7 @@ data/rejected/kafka/web_events/event_date=YYYY-MM-DD/web_events_<run_id>_rejecte
 data/audit/streaming_quality_runs.parquet
 ```
 
-Silver adds `quality_run_id` and `quality_checked_at`. Rejected also adds `rejection_reason`. Audit records counts and status per file; an invalid bronze technical contract blocks publication for that file and is recorded as `failed`.
+Silver adds `quality_run_id` and `quality_checked_at` and publishes normalized integers. Quality validates each `*_raw_value` type and range once and rebuilds the integer columns from those values. The `*_raw_value` columns remain only in bronze and rejected for diagnosis. Rejected also adds `rejection_reason`. Audit records counts and status per file; an invalid bronze technical contract blocks publication for that file and is recorded as `failed`.
 
 ## EN — Warehouse and dbt
 
