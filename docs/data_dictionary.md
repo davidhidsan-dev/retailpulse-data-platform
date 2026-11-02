@@ -83,11 +83,11 @@ El proyecto usa datos sintéticos, por lo que las descripciones explican el cont
 | `session_id` | Sesión usada también como message key de Kafka. | raw / bronze / silver / warehouse / dbt |
 | `customer_id` | Cliente de la sesión; puede ser nulo para navegación anónima. | raw / bronze / silver / warehouse / dbt |
 | `product_id` | Producto referenciado por el evento. | raw / bronze / silver / warehouse / dbt |
-| `kafka_topic` | Topic del mensaje consumido. | bronze |
-| `kafka_partition` | Partición Kafka del mensaje. | bronze |
-| `kafka_offset` | Posición del mensaje dentro de su partición. | bronze |
-| `kafka_timestamp` | Timestamp `CreateTime` conservado por Kafka. | bronze |
-| `kafka_key` | Key del mensaje; en este flujo coincide con `session_id`. | bronze |
+| `kafka_topic` | Topic del mensaje consumido. | raw / bronze / silver / warehouse / dbt |
+| `kafka_partition` | Partición Kafka del mensaje. | raw / bronze / silver / warehouse / dbt |
+| `kafka_offset` | Posición del mensaje dentro de su partición. | raw / bronze / silver / warehouse / dbt |
+| `kafka_timestamp` | Timestamp `CreateTime` conservado por Kafka. | raw / bronze / silver / warehouse / dbt |
+| `kafka_key` | Key del mensaje; en este flujo coincide con `session_id`. | raw / bronze / silver / warehouse / dbt |
 | `customer_id_raw_value` | Escalar JSON original de `customer_id` antes de normalizarlo. | bronze / rejected |
 | `product_id_raw_value` | Escalar JSON original de `product_id` antes de normalizarlo. | bronze / rejected |
 | `kafka_partition_raw_value` | Escalar JSON original de la partición antes de normalizarlo. | bronze / rejected |
@@ -246,11 +246,11 @@ The project uses synthetic data, so descriptions explain the technical and analy
 | `session_id` | Session identifier also used as the Kafka message key. | raw / bronze / silver / warehouse / dbt |
 | `customer_id` | Session customer; nullable for anonymous browsing. | raw / bronze / silver / warehouse / dbt |
 | `product_id` | Product referenced by the event. | raw / bronze / silver / warehouse / dbt |
-| `kafka_topic` | Topic of the consumed message. | bronze |
-| `kafka_partition` | Kafka partition containing the message. | bronze |
-| `kafka_offset` | Message position within its partition. | bronze |
-| `kafka_timestamp` | Kafka-preserved `CreateTime` timestamp. | bronze |
-| `kafka_key` | Message key; it matches `session_id` in this flow. | bronze |
+| `kafka_topic` | Topic of the consumed message. | raw / bronze / silver / warehouse / dbt |
+| `kafka_partition` | Kafka partition containing the message. | raw / bronze / silver / warehouse / dbt |
+| `kafka_offset` | Message position within its partition. | raw / bronze / silver / warehouse / dbt |
+| `kafka_timestamp` | Kafka-preserved `CreateTime` timestamp. | raw / bronze / silver / warehouse / dbt |
+| `kafka_key` | Message key; it matches `session_id` in this flow. | raw / bronze / silver / warehouse / dbt |
 | `customer_id_raw_value` | Original JSON scalar for `customer_id` before normalization. | bronze / rejected |
 | `product_id_raw_value` | Original JSON scalar for `product_id` before normalization. | bronze / rejected |
 | `kafka_partition_raw_value` | Original JSON scalar for the partition before normalization. | bronze / rejected |

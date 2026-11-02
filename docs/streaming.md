@@ -144,6 +144,9 @@ Dentro de la red Docker los brokers se anuncian como `kafka-1:19092`, `kafka-2:1
 make up
 make init-db       # solo si el esquema todavía no existe
 make seed-db       # prepara los clientes y productos de la demo
+make ingest-lake LOAD_DATE=2026-01-01
+make quality LOAD_DATE=2026-01-01
+make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
@@ -353,6 +356,9 @@ Inside the Docker network, the brokers advertise `kafka-1:19092`, `kafka-2:19092
 make up
 make init-db       # only if the schema does not exist yet
 make seed-db       # prepares demo customers and products
+make ingest-lake LOAD_DATE=2026-01-01
+make quality LOAD_DATE=2026-01-01
+make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20

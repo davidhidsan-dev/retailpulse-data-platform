@@ -176,7 +176,7 @@ Los marts iniciales son:
 
 ### 12. Airflow
 
-Airflow orquesta el flujo completo con un DAG manual local. No contiene lógica de transformación ni reglas de negocio.
+Airflow orquesta el flujo batch completo con un DAG manual local. No contiene lógica de transformación ni reglas de negocio. La vertical streaming v2.0 todavía se ejecuta mediante comandos separados.
 
 ### 13. Streaming Kafka v2.0
 
@@ -377,7 +377,7 @@ Initial marts:
 
 ### 12. Airflow
 
-Airflow orchestrates the full flow with a local manual DAG. It does not contain transformation logic or business rules.
+Airflow orchestrates the full batch flow with a local manual DAG. It does not contain transformation logic or business rules. The v2.0 streaming vertical still runs through separate commands.
 
 ### 13. Kafka streaming v2.0
 

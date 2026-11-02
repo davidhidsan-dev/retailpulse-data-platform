@@ -98,9 +98,9 @@ Los tests validan:
 - campos no nulos.
 - dominios permitidos.
 - relaciones entre hechos y dimensiones.
-- al menos una fila en cada mart.
+- al menos una fila en cada mart batch.
 
-El test genérico `not_empty` detecta tablas vacías que los tests de filas no pueden detectar.
+El test genérico `not_empty` detecta marts batch vacíos que los tests de filas no pueden detectar. No se aplica a los marts web porque una ejecución exclusivamente batch puede no haber cargado todavía eventos.
 
 `reconcile_fact_sales` compara cada `order_item_id` de `stg_order_items` con `fact_sales`. Falla si una línea aceptada desaparece, aparece una línea inesperada o cambia `line_total`. Cada fallo muestra el identificador y los importes de ambas capas, además de sus recuentos y sumas totales. El test de unicidad de `fact_sales` detecta líneas duplicadas. Para inspeccionar los fallos, ejecuta `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` desde `dbt/`.
 
@@ -217,9 +217,9 @@ Tests validate:
 - non-null fields.
 - accepted domains.
 - relationships between facts and dimensions.
-- at least one row in every mart.
+- at least one row in every batch mart.
 
-The generic `not_empty` test catches empty tables that row-level tests cannot detect.
+The generic `not_empty` test catches empty batch marts that row-level tests cannot detect. It is not applied to web marts because a batch-only run may not have loaded events yet.
 
 `reconcile_fact_sales` compares every `order_item_id` in `stg_order_items` with `fact_sales`. It fails when an accepted item is missing, an unexpected item appears, or `line_total` changes. Each failure shows the item ID and amounts from both layers, plus their total row counts and amounts. The `fact_sales` uniqueness test catches duplicate items. Run `dbt test --select reconcile_fact_sales --store-failures --profiles-dir .` from `dbt/` to inspect the failures.
 

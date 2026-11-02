@@ -54,13 +54,17 @@ Más detalle: [`docs/architecture.md`](docs/architecture.md).
 
 ## Evidencia visual
 
-### Orquestación en Airflow
+### Orquestación batch v1.0 en Airflow
 
 ![DAG de RetailPulse en Airflow](dashboards/screenshots/airflow_dag.png)
 
-### Linaje de modelos dbt
+La vertical streaming v2.0 se ejecuta manualmente y todavía no forma parte de este DAG.
+
+### Linaje batch v1.0 de modelos dbt
 
 ![Linaje de RetailPulse en dbt](dashboards/screenshots/dbt_lineage.png)
+
+La captura es la referencia visual de v1.0; el proyecto actual añade `stg_web_events`, `fact_web_events` y `fact_web_sessions`.
 
 ## Stack
 
@@ -119,12 +123,15 @@ make dbt-test
 
 Ejecutar una demo finita de streaming:
 
-La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`. El topic usa tres particiones, factor de replicación tres y distribuye las sesiones mediante `session_id`.
+La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`. Antes de ejecutar dbt también deben cargarse las seis tablas batch en `warehouse_source`, ya que el proyecto dbt construye conjuntamente los modelos batch y streaming. El topic usa tres particiones, factor de replicación tres y distribuye las sesiones mediante `session_id`.
 
 ```bash
 make up
 make init-db
 make seed-db
+make ingest-lake LOAD_DATE=2026-01-01
+make quality LOAD_DATE=2026-01-01
+make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
@@ -225,6 +232,7 @@ Staging:
 - `stg_orders`
 - `stg_order_items`
 - `stg_payments`
+- `stg_web_events`
 
 Marts:
 
@@ -233,8 +241,10 @@ Marts:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
-`fact_sales` tiene grano de línea de pedido (`order_item_id`). `fact_inventory` tiene grano de producto (`product_id`).
+`fact_sales` tiene grano de línea de pedido (`order_item_id`), `fact_inventory` de producto (`product_id`), `fact_web_events` de evento (`event_id`) y `fact_web_sessions` de sesión (`session_id`).
 
 Más detalle: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 

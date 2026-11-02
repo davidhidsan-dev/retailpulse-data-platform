@@ -54,13 +54,17 @@ More detail: [`docs/architecture.md`](docs/architecture.md).
 
 ## Visual evidence
 
-### Airflow orchestration
+### Airflow batch v1.0 orchestration
 
 ![RetailPulse DAG in Airflow](dashboards/screenshots/airflow_dag_en.png)
 
-### dbt model lineage
+The v2.0 streaming vertical runs manually and is not yet part of this DAG.
+
+### dbt batch v1.0 model lineage
 
 ![RetailPulse lineage in dbt](dashboards/screenshots/dbt_lineage.png)
+
+The screenshot is the v1.0 visual reference; the current project also includes `stg_web_events`, `fact_web_events` and `fact_web_sessions`.
 
 ## Stack
 
@@ -119,12 +123,15 @@ make dbt-test
 
 Run a finite streaming demo:
 
-The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The topic uses three partitions, replication factor three and distributes sessions through `session_id`.
+The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The six batch tables must also be loaded into `warehouse_source` before running dbt, because the dbt project builds batch and streaming models together. The topic uses three partitions, replication factor three and distributes sessions through `session_id`.
 
 ```bash
 make up
 make init-db
 make seed-db
+make ingest-lake LOAD_DATE=2026-01-01
+make quality LOAD_DATE=2026-01-01
+make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
@@ -225,6 +232,7 @@ Staging:
 - `stg_orders`
 - `stg_order_items`
 - `stg_payments`
+- `stg_web_events`
 
 Marts:
 
@@ -233,8 +241,10 @@ Marts:
 - `dim_date`
 - `fact_sales`
 - `fact_inventory`
+- `fact_web_events`
+- `fact_web_sessions`
 
-`fact_sales` is at order-item grain (`order_item_id`). `fact_inventory` is at product grain (`product_id`).
+`fact_sales` is at order-item grain (`order_item_id`), `fact_inventory` at product grain (`product_id`), `fact_web_events` at event grain (`event_id`) and `fact_web_sessions` at session grain (`session_id`).
 
 More detail: [`docs/warehouse_model.md`](docs/warehouse_model.md).
 
