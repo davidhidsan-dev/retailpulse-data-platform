@@ -96,7 +96,7 @@ Motivos:
 - `make airflow-up` construye y levanta PostgreSQL y Airflow.
 - las dependencias de Python de Airflow permanecen aisladas en su imagen.
 
-La imagen mantiene dos entornos Python separados. El entorno base ejecuta Airflow y aplica las actualizaciones de seguridad fijadas en `requirements-airflow-base.txt`; el entorno `/home/airflow/.retailpulse-venv` contiene las dependencias del pipeline. CI audita ambos entornos de forma independiente.
+La imagen mantiene dos entornos Python separados. El entorno base ejecuta Airflow y aplica las actualizaciones de seguridad fijadas en `requirements-airflow-base.txt`; el entorno `/home/airflow/.retailpulse-venv` contiene las dependencias del pipeline. CI audita ambos entornos de forma independiente. Los providers de Google y Snowflake preinstalados se retiran porque este DAG no los utiliza.
 
 ## ES — Ejecución sin Airflow
 
@@ -221,7 +221,7 @@ Reasons:
 - `make airflow-up` builds and starts PostgreSQL and Airflow.
 - Airflow's Python dependencies remain isolated in its image.
 
-The image keeps two separate Python environments. The base environment runs Airflow and applies the security updates pinned in `requirements-airflow-base.txt`; `/home/airflow/.retailpulse-venv` contains the pipeline dependencies. CI audits both environments independently.
+The image keeps two separate Python environments. The base environment runs Airflow and applies the security updates pinned in `requirements-airflow-base.txt`; `/home/airflow/.retailpulse-venv` contains the pipeline dependencies. CI audits both environments independently. The preinstalled Google and Snowflake providers are removed because this DAG does not use them.
 
 ## EN — Execution without Airflow
 

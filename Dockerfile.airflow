@@ -6,7 +6,14 @@ ARG AIRFLOW_VERSION
 
 COPY requirements-airflow-base.txt /tmp/retailpulse/
 
-RUN python -m pip install --no-cache-dir \
+RUN python -m pip uninstall --yes \
+        apache-airflow-providers-google \
+        apache-airflow-providers-snowflake \
+        litellm \
+        snowflake-connector-python \
+        snowflake-snowpark-python \
+        snowflake-sqlalchemy \
+    && python -m pip install --no-cache-dir \
         "apache-airflow==${AIRFLOW_VERSION}" \
         -r /tmp/retailpulse/requirements-airflow-base.txt \
     && python -m pip check
