@@ -119,13 +119,13 @@ Los tests comprueban claves, dominios, relaciones con clientes/productos, reconc
 
 ### Demo controlada de rejected
 
-Una ejecución normal puede producir cero rechazados. Para enseñar el circuito de calidad sin contaminar el lote normal, la demo copia un bronze existente a un `run_id` separado, crea su raw correspondiente e introduce cinco anomalías deterministas: `event_type` inválido, `product_id` negativo, fecha fuera de la partición y una posición Kafka duplicada que afecta a dos filas.
+Una ejecución normal puede producir cero rechazados. Para enseñar el circuito de calidad sin contaminar el lote normal, la demo copia un bronze existente al lake aislado `data/demo`, crea allí su raw correspondiente e introduce cinco anomalías deterministas: `event_type` inválido, `product_id` negativo, fecha fuera de la partición y una posición Kafka duplicada que afecta a dos filas.
 
 ```bash
 make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>
 ```
 
-Si la partición solo contiene un bronze, `EVENT_RUN_ID` se puede omitir. La demo usa `quality-demo` como `run_id`, necesita al menos cinco filas y reemplaza únicamente sus propios archivos al repetirse. Es material de demostración y no debe utilizarse como fuente normal.
+Si la partición normal solo contiene un bronze, `EVENT_RUN_ID` se puede omitir. La demo usa `quality-demo` como `run_id`, necesita al menos cinco filas y reemplaza únicamente sus propios archivos al repetirse. Sus salidas raw, bronze, silver, rejected y audit permanecen bajo `data/demo`, por lo que una validación normal sin `run_id` no puede descubrirlas. Es material de demostración y no debe utilizarse como fuente normal.
 
 ## ES — Ejecución local
 
@@ -328,13 +328,13 @@ Tests cover keys, domains, customer/product relationships, staging-to-fact recon
 
 ### Controlled rejected-record demo
 
-A normal execution may produce zero rejected rows. To demonstrate the quality path without contaminating the normal run, the demo copies an existing bronze file to a separate `run_id`, creates its matching raw file and introduces five deterministic anomalies: an invalid `event_type`, a negative `product_id`, a date outside the partition and one duplicated Kafka position affecting two rows.
+A normal execution may produce zero rejected rows. To demonstrate the quality path without contaminating the normal run, the demo copies an existing bronze file into the isolated `data/demo` lake, creates its matching raw file there and introduces five deterministic anomalies: an invalid `event_type`, a negative `product_id`, a date outside the partition and one duplicated Kafka position affecting two rows.
 
 ```bash
 make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>
 ```
 
-When the partition contains only one bronze file, `EVENT_RUN_ID` can be omitted. The demo uses `quality-demo` as its `run_id`, requires at least five rows and replaces only its own files when rerun. It is demonstration material and must not be used as a normal source.
+When the normal partition contains only one bronze file, `EVENT_RUN_ID` can be omitted. The demo uses `quality-demo` as its `run_id`, requires at least five rows and replaces only its own files when rerun. Its raw, bronze, silver, rejected and audit outputs remain under `data/demo`, so an unscoped normal validation cannot discover them. It is demonstration material and must not be used as a normal source.
 
 ## EN — Local execution
 

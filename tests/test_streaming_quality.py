@@ -220,9 +220,12 @@ def test_quality_cli_parses_event_date_run_id_and_topic() -> None:
             "run-a",
             "--topic",
             "retailpulse.web_events",
+            "--data-root",
+            "custom-data",
         ]
     )
 
     assert args.event_date.isoformat() == EVENT_DATE
     assert args.run_id == "run-a"
     assert args.topic == "retailpulse.web_events"
+    assert args.data_root == Path("custom-data")

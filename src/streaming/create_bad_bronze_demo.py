@@ -24,6 +24,7 @@ from src.utils.paths import DEFAULT_DATA_ROOT
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_DEMO_RUN_ID = "quality-demo"
+DEFAULT_DEMO_DATA_ROOT = DEFAULT_DATA_ROOT / "demo"
 MINIMUM_DEMO_ROWS = 5
 DEMO_ANOMALIES = (
     "event_type is not allowed",
@@ -139,10 +140,11 @@ def create_bad_streaming_bronze_demo(
     event_date: date | str,
     *,
     data_root: Path | str = DEFAULT_DATA_ROOT,
+    demo_data_root: Path | str = DEFAULT_DEMO_DATA_ROOT,
     source_run_id: str | None = None,
     demo_run_id: str = DEFAULT_DEMO_RUN_ID,
 ) -> StreamingQualityDemoResult:
-    """Copy one bronze run and inject controlled anomalies into a demo run."""
+    """Copy one bronze run into an isolated demo lake and inject anomalies."""
     resolved_date = resolve_event_date(event_date)
     if not RUN_ID_PATTERN.fullmatch(demo_run_id):
         raise ValueError(f"Invalid demo_run_id: {demo_run_id!r}")
@@ -161,12 +163,12 @@ def create_bad_streaming_bronze_demo(
     demo_raw_path = build_raw_event_path(
         resolved_date,
         demo_run_id,
-        data_root,
+        demo_data_root,
     )
     demo_bronze_path = build_bronze_event_path(
         resolved_date,
         demo_run_id,
-        data_root,
+        demo_data_root,
     )
     demo["ingestion_id"] = f"demo-{resolved_source_run_id}"
     demo["source_file"] = demo_raw_path.name
@@ -220,6 +222,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_DEMO_RUN_ID,
         help=f"demo run identifier; defaults to {DEFAULT_DEMO_RUN_ID}",
     )
+    parser.add_argument(
+        "--demo-data-root",
+        type=Path,
+        default=DEFAULT_DEMO_DATA_ROOT,
+        help="isolated demo lake root; defaults to data/demo",
+    )
     return parser.parse_args(argv)
 
 
@@ -229,6 +237,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     result = create_bad_streaming_bronze_demo(
         args.event_date,
+        demo_data_root=args.demo_data_root,
         source_run_id=args.source_run_id,
         demo_run_id=args.demo_run_id,
     )

@@ -27,6 +27,7 @@ data/silver/*
 data/rejected/*
 data/audit/*
 data/gold/*
+data/demo/
 !data/raw/.gitkeep
 !data/bronze/.gitkeep
 !data/silver/.gitkeep

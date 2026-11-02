@@ -63,12 +63,15 @@ def _write_source_bronze(data_root: Path, count: int = 6) -> Path:
 def test_demo_creates_separate_raw_and_bronze_without_changing_source(
     tmp_path: Path,
 ) -> None:
-    source_path = _write_source_bronze(tmp_path)
+    source_root = tmp_path / "normal"
+    demo_root = tmp_path / "demo"
+    source_path = _write_source_bronze(source_root)
     source_before = pd.read_parquet(source_path)
 
     result = create_bad_streaming_bronze_demo(
         EVENT_DATE,
-        data_root=tmp_path,
+        data_root=source_root,
+        demo_data_root=demo_root,
         source_run_id=SOURCE_RUN_ID,
         demo_run_id=DEMO_RUN_ID,
     )
@@ -77,6 +80,8 @@ def test_demo_creates_separate_raw_and_bronze_without_changing_source(
     assert result.row_count == 6
     assert result.demo_raw_path.exists()
     assert result.demo_bronze_path.exists()
+    assert result.demo_raw_path.is_relative_to(demo_root)
+    assert result.demo_bronze_path.is_relative_to(demo_root)
     assert len(result.demo_raw_path.read_text(encoding="utf-8").splitlines()) == 6
     demo = pd.read_parquet(result.demo_bronze_path)
     assert demo["source_file"].eq(result.demo_raw_path.name).all()
@@ -90,7 +95,8 @@ def test_demo_creates_separate_raw_and_bronze_without_changing_source(
 
     rerun = create_bad_streaming_bronze_demo(
         EVENT_DATE,
-        data_root=tmp_path,
+        data_root=source_root,
+        demo_data_root=demo_root,
         demo_run_id=DEMO_RUN_ID,
     )
     assert rerun.source_run_id == SOURCE_RUN_ID
@@ -98,17 +104,20 @@ def test_demo_creates_separate_raw_and_bronze_without_changing_source(
 
 
 def test_demo_validation_publishes_five_rejected_rows(tmp_path: Path) -> None:
-    _write_source_bronze(tmp_path)
+    source_root = tmp_path / "normal"
+    demo_root = tmp_path / "demo"
+    _write_source_bronze(source_root)
     create_bad_streaming_bronze_demo(
         EVENT_DATE,
-        data_root=tmp_path,
+        data_root=source_root,
+        demo_data_root=demo_root,
         source_run_id=SOURCE_RUN_ID,
         demo_run_id=DEMO_RUN_ID,
     )
 
     result = validate_bronze_web_events(
         EVENT_DATE,
-        data_root=tmp_path,
+        data_root=demo_root,
         run_id=DEMO_RUN_ID,
         quality_run_id="demo-quality-run",
         quality_checked_at="2026-01-01T13:00:00Z",
@@ -125,13 +134,46 @@ def test_demo_validation_publishes_five_rejected_rows(tmp_path: Path) -> None:
     assert "Kafka topic-partition-offset is duplicated within run_id" in reasons
 
 
+def test_demo_does_not_change_unscoped_normal_validation(tmp_path: Path) -> None:
+    source_root = tmp_path / "normal"
+    demo_root = tmp_path / "demo"
+    _write_source_bronze(source_root)
+    create_bad_streaming_bronze_demo(
+        EVENT_DATE,
+        data_root=source_root,
+        demo_data_root=demo_root,
+        source_run_id=SOURCE_RUN_ID,
+        demo_run_id=DEMO_RUN_ID,
+    )
+
+    validate_bronze_web_events(
+        EVENT_DATE,
+        data_root=demo_root,
+        run_id=DEMO_RUN_ID,
+        quality_run_id="demo-quality-run",
+        quality_checked_at="2026-01-01T13:00:00Z",
+    )
+    normal_result = validate_bronze_web_events(
+        EVENT_DATE,
+        data_root=source_root,
+        quality_run_id="normal-quality-run",
+        quality_checked_at="2026-01-01T13:05:00Z",
+    )[0]
+
+    assert (normal_result.valid_rows, normal_result.rejected_rows) == (6, 0)
+    assert normal_result.run_id == SOURCE_RUN_ID
+    assert normal_result.silver_path.is_relative_to(source_root)
+
+
 def test_demo_requires_at_least_five_source_rows(tmp_path: Path) -> None:
-    _write_source_bronze(tmp_path, count=4)
+    source_root = tmp_path / "normal"
+    _write_source_bronze(source_root, count=4)
 
     with pytest.raises(ValueError, match="at least 5 rows"):
         create_bad_streaming_bronze_demo(
             EVENT_DATE,
-            data_root=tmp_path,
+            data_root=source_root,
+            demo_data_root=tmp_path / "demo",
             source_run_id=SOURCE_RUN_ID,
         )
 
@@ -145,9 +187,12 @@ def test_demo_cli_parses_source_and_demo_run_ids() -> None:
             SOURCE_RUN_ID,
             "--demo-run-id",
             DEMO_RUN_ID,
+            "--demo-data-root",
+            "custom-demo-data",
         ]
     )
 
     assert args.event_date.isoformat() == EVENT_DATE
     assert args.source_run_id == SOURCE_RUN_ID
     assert args.demo_run_id == DEMO_RUN_ID
+    assert args.demo_data_root == Path("custom-demo-data")

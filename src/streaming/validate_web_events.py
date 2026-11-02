@@ -544,6 +544,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="expected Kafka topic; defaults to KAFKA_TOPIC_WEB_EVENTS",
     )
+    parser.add_argument(
+        "--data-root",
+        type=Path,
+        default=DEFAULT_DATA_ROOT,
+        help="data lake root; defaults to the project data directory",
+    )
     return parser.parse_args(argv)
 
 
@@ -557,6 +563,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     results = validate_bronze_web_events(
         args.event_date,
+        data_root=args.data_root,
         run_id=args.run_id,
         expected_topic=expected_topic,
     )

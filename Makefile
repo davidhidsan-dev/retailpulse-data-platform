@@ -3,6 +3,7 @@ EVENT_COUNT ?= 20
 EVENT_SEED ?= 42
 EVENT_DATE ?= 2026-01-01
 DEMO_EVENT_RUN_ID ?= quality-demo
+DEMO_DATA_ROOT ?= data/demo
 KAFKA_CONSUMER_GROUP ?= retailpulse-raw-web-events-v1
 KAFKA_CONSUMER_ID ?= retailpulse-consumer-1
 KAFKA_CONSUMER_TIMEOUT ?= 15
@@ -104,8 +105,8 @@ load-events-warehouse:
 	python -m src.warehouse.load_streaming_silver_to_warehouse --event-date $(EVENT_DATE) $(EVENT_RUN_ID_ARG)
 
 quality-events-demo:
-	python -m src.streaming.create_bad_bronze_demo --event-date $(EVENT_DATE) $(SOURCE_EVENT_RUN_ID_ARG) --demo-run-id $(DEMO_EVENT_RUN_ID)
-	python -m src.streaming.validate_web_events --event-date $(EVENT_DATE) --run-id $(DEMO_EVENT_RUN_ID)
+	python -m src.streaming.create_bad_bronze_demo --event-date $(EVENT_DATE) $(SOURCE_EVENT_RUN_ID_ARG) --demo-run-id $(DEMO_EVENT_RUN_ID) --demo-data-root $(DEMO_DATA_ROOT)
+	python -m src.streaming.validate_web_events --event-date $(EVENT_DATE) --run-id $(DEMO_EVENT_RUN_ID) --data-root $(DEMO_DATA_ROOT)
 
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
