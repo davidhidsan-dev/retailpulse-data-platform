@@ -147,7 +147,7 @@ Para demostrar rejected records sin alterar el lote normal: `make quality-events
 
 Más detalle: [`docs/streaming.md`](docs/streaming.md).
 
-Los tres targets aceptan `LOAD_DATE`; si se omite, usan la fecha UTC actual. Los módulos Python también aceptan `--load-date`.
+`ingest-lake`, `quality` y `load-warehouse` aceptan `LOAD_DATE`; si se omite, usan la fecha UTC actual. Los módulos Python correspondientes también aceptan `--load-date`.
 
 ## Ejecución con Airflow
 

@@ -147,7 +147,7 @@ To demonstrate rejected records without changing the normal run: `make quality-e
 
 More detail: [`docs/streaming.md`](docs/streaming.md).
 
-All three targets accept `LOAD_DATE`; if omitted, they use the current UTC date. The Python modules also accept `--load-date`.
+`ingest-lake`, `quality` and `load-warehouse` accept `LOAD_DATE`; when omitted, they use the current UTC date. Their corresponding Python modules also accept `--load-date`.
 
 ## Airflow execution
 

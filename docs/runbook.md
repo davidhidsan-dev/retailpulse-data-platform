@@ -188,11 +188,11 @@ Detener:
 make airflow-down
 ```
 
-Este comando detiene Airflow y PostgreSQL del Compose combinado, conservando volúmenes. Airflow es local/dev con acceso administrativo sin autenticación. El DAG admite una sola ejecución activa; otra ejecución queda en espera. El DAG regenera la fuente; no lo ejecutes a la vez que el flujo manual, porque comparten datos.
+Este comando ejecuta `docker compose down`: detiene y elimina todos los contenedores del proyecto Compose, incluidos los brokers Kafka si existen. Kafka no usa volúmenes, por lo que sus mensajes se pierden al eliminar los contenedores. Los volúmenes de PostgreSQL y Airflow se conservan. Airflow es local/dev con acceso administrativo sin autenticación. El DAG admite una sola ejecución activa; otra ejecución queda en espera. El DAG regenera la fuente; no lo ejecutes a la vez que el flujo manual, porque comparten datos.
 
 ## ES — Limpieza del entorno
 
-`make clean` limpia cachés Python/pytest y conserva `data/` y los volúmenes Docker. `make down` detiene el entorno básico; si levantaste Airflow, usa `make airflow-down`. No se eliminan automáticamente datasets ni bases de datos.
+`make clean` limpia cachés Python/pytest y conserva `data/` y los volúmenes Docker. `make down` y `make airflow-down` ejecutan el mismo `docker compose down`: conservan los volúmenes de PostgreSQL y Airflow, pero eliminan los contenedores Kafka y sus mensajes. Para detener Kafka sin eliminar sus contenedores, usa `make kafka-down`. Los datasets locales y las bases de datos no se eliminan automáticamente.
 
 ## ES — Salidas esperadas
 
@@ -501,11 +501,11 @@ Stop:
 make airflow-down
 ```
 
-This command stops both Airflow and PostgreSQL in the combined Compose project, preserving volumes. Airflow is local/dev with administrative access without authentication. The DAG allows one active run; another run waits. The DAG regenerates the source; do not run it concurrently with the manual flow, as they share data.
+This command runs `docker compose down`: it stops and removes every container in the Compose project, including Kafka brokers when present. Kafka does not use volumes, so its messages are lost when those containers are removed. The PostgreSQL and Airflow volumes are preserved. Airflow is local/dev with administrative access without authentication. The DAG allows one active run; another run waits. The DAG regenerates the source; do not run it concurrently with the manual flow, as they share data.
 
 ## EN — Environment cleanup
 
-`make clean` removes Python/pytest caches while preserving `data/` and Docker volumes. `make down` stops the basic environment; use `make airflow-down` if Airflow is running. Datasets and databases are not automatically deleted.
+`make clean` removes Python/pytest caches while preserving `data/` and Docker volumes. `make down` and `make airflow-down` run the same `docker compose down`: they preserve the PostgreSQL and Airflow volumes, but remove Kafka containers and their messages. Use `make kafka-down` to stop Kafka without removing its containers. Local datasets and databases are not automatically deleted.
 
 ## EN — Expected outputs
 
