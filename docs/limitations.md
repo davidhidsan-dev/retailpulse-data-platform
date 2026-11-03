@@ -35,7 +35,7 @@ Limitaciones:
 - sin catálogo de datos.
 - sin control de permisos por capa.
 - sin versionado de objetos.
-- sin almacenamiento tipo S3/MinIO en v1.0.
+- sin almacenamiento tipo S3/MinIO en el alcance actual.
 - sin control robusto de concurrencia.
 
 ## ES — Ingesta full snapshot
@@ -101,7 +101,7 @@ Limitaciones:
 
 ## ES — Herramientas fuera del alcance actual
 
-No forman parte de v1.0:
+No forman parte del alcance actual:
 
 - dashboard.
 - Spark.
@@ -156,7 +156,7 @@ Limitations:
 - no data catalog.
 - no layer-level permission model.
 - no object versioning.
-- no S3/MinIO storage in v1.0.
+- no S3/MinIO storage in the current scope.
 - no robust concurrency control.
 
 ## EN — Full snapshot ingestion

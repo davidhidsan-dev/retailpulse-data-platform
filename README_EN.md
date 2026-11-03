@@ -16,7 +16,7 @@ RetailPulse reproduces that process with controlled relational synthetic data.
 
 ## Current status
 
-Stable v1.0 batch pipeline. Streaming v2.0 in development.
+Stable RetailPulse v2.0: completed batch pipeline and Kafka streaming vertical.
 
 Included:
 
@@ -60,11 +60,11 @@ More detail: [`docs/architecture.md`](docs/architecture.md).
 
 The v2.0 streaming vertical runs manually and is not yet part of this DAG.
 
-### dbt batch v1.0 model lineage
+### dbt model lineage in v2.0
 
 ![RetailPulse lineage in dbt](dashboards/screenshots/dbt_lineage.png)
 
-The screenshot is the v1.0 visual reference; the current project also includes `stg_web_events`, `fact_web_events` and `fact_web_sessions`.
+The lineage includes the batch models together with `stg_web_events`, `fact_web_events` and `fact_web_sessions`.
 
 ## Stack
 
@@ -300,7 +300,7 @@ The pipeline architecture, project scope, result validation, final decisions, an
 - Kafka uses three brokers to demonstrate local replication and failover, without claiming production operations.
 - Batch tables use full refresh / replace; `warehouse_source.web_events` uses idempotent append by `event_id`.
 - There is no CDC or incremental dbt model.
-- There is no dashboard in v1.0.
+- The current scope does not include a dashboard.
 - Airflow is local/dev only.
 - There are no SCDs or semantic metrics layer.
 - CI runs the reduced batch pipeline and idempotent streaming load against real PostgreSQL, followed by `dbt build`; the Kafka broker and Airflow are validated separately in local development.
