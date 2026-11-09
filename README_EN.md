@@ -123,7 +123,7 @@ make dbt-test
 
 Run a finite streaming demo:
 
-The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The six batch tables must also be loaded into `warehouse_source` before running dbt, because the dbt project builds batch and streaming models together. The topic uses three partitions, replication factor three and distributes sessions through `session_id`.
+The PostgreSQL source must be running, initialized and seeded because the producer uses real IDs from `customers` and `products`. The six batch tables must also be loaded into `warehouse_source` before running dbt, because the dbt project builds batch and streaming models together. The topic uses three partitions, replication factor three and distributes sessions through `session_id`. The demo assumes one synthetic dataset generation: changing the customer/product seed or volume also requires resetting the streaming history.
 
 ```bash
 make up
@@ -144,6 +144,8 @@ make kafka-down
 ```
 
 To demonstrate rejected records without changing the normal run: `make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>`.
+
+To change the batch dataset seed or customer/product counts, start a clean demo with `make reset-demo`. Changing `EVENT_SEED` or `EVENT_COUNT` to produce other Kafka events does not require resetting the demo while keeping the same batch dataset. The reset removes containers, Docker volumes, generated lake data and dbt artifacts; it does not remove code, `.env`, `.venv`, documentation or screenshots.
 
 More detail: [`docs/streaming.md`](docs/streaming.md).
 

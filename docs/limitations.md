@@ -70,6 +70,7 @@ Limitaciones:
 - no conserva histórico de snapshots.
 - no hay merge incremental para las tablas batch.
 - un `event_id` repetido se ignora; no existe actualización de eventos ya almacenados.
+- el histórico `web_events` presupone la misma generación sintética que `customers` y `products`; cambiar su seed o volumen requiere una demo limpia.
 - no hay SCD.
 - no hay particionado físico de warehouse.
 
@@ -191,6 +192,7 @@ Limitations:
 - no snapshot history.
 - no incremental merge for batch tables.
 - a repeated `event_id` is ignored; stored events are not updated.
+- `web_events` history assumes the same synthetic generation as `customers` and `products`; changing their seed or volume requires a clean demo.
 - no SCD.
 - no physical warehouse partitioning.
 

@@ -118,6 +118,10 @@ Limitación:
 
 Los eventos streaming sí usan append incremental. Antes de cargar un `run_id`, el loader exige la última auditoría aprobada y verifica que silver pertenece a la ingesta bronze actual. `warehouse_source.web_events.event_id` es clave primaria; `ON CONFLICT DO NOTHING` hace que repetir el mismo evento no cambie el recuento. Un `event_id` ya existente se considera replay y no actualiza su payload.
 
+Esta idempotencia presupone el mismo dataset sintético. No cubre regenerar clientes o productos con otra seed o volumen mientras se conserva `web_events`: en ese caso, los IDs históricos podrían desaparecer o representar otras entidades y debe iniciarse una demo limpia.
+
+La demo limpia se inicia explícitamente con `make reset-demo`; `seed-db` no elimina el histórico streaming de forma implícita.
+
 ## ES — dbt
 
 dbt reconstruye staging y marts desde `warehouse_source`.
@@ -274,6 +278,10 @@ Limitation:
 - no incremental loading.
 
 Streaming events do use incremental append. Before loading a `run_id`, the loader requires the latest approved audit record and verifies that silver belongs to the current bronze ingestion. `warehouse_source.web_events.event_id` is the primary key; `ON CONFLICT DO NOTHING` means replaying the same event does not change row counts. An existing `event_id` is treated as a replay and does not update its payload.
+
+This idempotency assumes the same synthetic dataset. It does not cover regenerating customers or products with another seed or volume while preserving `web_events`: historical IDs could disappear or represent different entities, so a clean demo is required.
+
+Start that clean demo explicitly with `make reset-demo`; `seed-db` does not implicitly delete streaming history.
 
 ## EN — dbt
 

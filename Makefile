@@ -11,7 +11,7 @@ LOAD_DATE_ARG = $(if $(LOAD_DATE),--load-date $(LOAD_DATE),)
 EVENT_RUN_ID_ARG = $(if $(EVENT_RUN_ID),--run-id $(EVENT_RUN_ID),)
 SOURCE_EVENT_RUN_ID_ARG = $(if $(EVENT_RUN_ID),--source-run-id $(EVENT_RUN_ID),)
 
-.PHONY: up down logs ps test clean init-db seed-db ingest-lake quality quality-demo load-warehouse load-events-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs kafka-ps kafka-stop-broker-1 kafka-start-broker-1 produce-events consume-events consume-events-partial bronze-events quality-events quality-events-demo
+.PHONY: up down logs ps test clean reset-demo init-db seed-db ingest-lake quality quality-demo load-warehouse load-events-warehouse dbt-run dbt-test dbt-docs-generate airflow-up airflow-down airflow-logs airflow-ps kafka-up kafka-down kafka-logs kafka-ps kafka-stop-broker-1 kafka-start-broker-1 produce-events consume-events consume-events-partial bronze-events quality-events quality-events-demo
 
 up:
 	docker compose up -d postgres
@@ -111,3 +111,8 @@ quality-events-demo:
 clean:
 	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
 	python -c "import shutil; from pathlib import Path; [shutil.rmtree(path, ignore_errors=True) for path in Path('.').rglob('__pycache__') if not {'.git', '.venv', 'venv', 'data'}.intersection(path.parts)]"
+
+reset-demo:
+	python -m src.utils.reset_demo --check
+	docker compose down --volumes --remove-orphans
+	python -m src.utils.reset_demo

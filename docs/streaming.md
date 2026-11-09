@@ -228,6 +228,7 @@ El batch obtiene snapshots relacionales completos desde PostgreSQL y continúa h
 - Sin Schema Registry, Avro, Kafka Connect ni procesamiento continuo.
 - El consumer procesa lotes finitos para demos controladas.
 - La tabla de eventos es incremental, pero los modelos dbt se reconstruyen como tablas completas.
+- El histórico streaming presupone la misma generación sintética que las dimensiones batch. Regenerar clientes o productos con otra seed o volumen exige iniciar una demo limpia; conservar los eventos anteriores podría dejar IDs inexistentes o reutilizados.
 - La calidad aún no contrasta `customer_id` y `product_id` contra una snapshot relacional de referencia.
 - La unicidad se comprueba dentro de los ficheros y la `event_date` seleccionados, no mediante un índice global de todo el histórico.
 - CI prueba generación, serialización, raw, bronze y calidad; la prueba real broker-cliente se ejecuta localmente y podrá convertirse en integración opt-in si el flujo crece.
@@ -440,6 +441,7 @@ The batch pipeline extracts complete relational snapshots from PostgreSQL and co
 - No Schema Registry, Avro, Kafka Connect or continuous processing.
 - The consumer processes finite batches for controlled demos.
 - The event table is incremental, but dbt models are rebuilt as full tables.
+- Streaming history assumes the same synthetic dataset generation as the batch dimensions. Regenerating customers or products with a different seed or volume requires a clean demo; keeping earlier events could leave missing or reused IDs.
 - Quality does not yet compare `customer_id` and `product_id` against a relational reference snapshot.
 - Uniqueness is checked within the selected files and `event_date`, not through a global index over the full history.
 - CI tests generation, serialization, raw, bronze and quality; the real broker-client check is local and may become an opt-in integration test if the flow grows.

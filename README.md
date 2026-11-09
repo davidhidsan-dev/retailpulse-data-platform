@@ -123,7 +123,7 @@ make dbt-test
 
 Ejecutar una demo finita de streaming:
 
-La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`. Antes de ejecutar dbt también deben cargarse las seis tablas batch en `warehouse_source`, ya que el proyecto dbt construye conjuntamente los modelos batch y streaming. El topic usa tres particiones, factor de replicación tres y distribuye las sesiones mediante `session_id`.
+La fuente PostgreSQL debe estar levantada, inicializada y poblada porque el productor utiliza IDs reales de `customers` y `products`. Antes de ejecutar dbt también deben cargarse las seis tablas batch en `warehouse_source`, ya que el proyecto dbt construye conjuntamente los modelos batch y streaming. El topic usa tres particiones, factor de replicación tres y distribuye las sesiones mediante `session_id`. La demo presupone una única generación sintética: si se cambia la seed o el volumen de clientes/productos, debe reiniciarse también el histórico streaming.
 
 ```bash
 make up
@@ -144,6 +144,8 @@ make kafka-down
 ```
 
 Para demostrar rejected records sin alterar el lote normal: `make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>`.
+
+Para cambiar la semilla o el número de clientes/productos del dataset batch, comienza una demo limpia con `make reset-demo`. Cambiar `EVENT_SEED` o `EVENT_COUNT` para producir otros eventos Kafka no requiere reiniciar la demo mientras se conserve el mismo dataset batch. El reinicio elimina contenedores, volúmenes Docker, datos generados del lake y artefactos dbt; no elimina código, `.env`, `.venv`, documentación ni capturas.
 
 Más detalle: [`docs/streaming.md`](docs/streaming.md).
 
