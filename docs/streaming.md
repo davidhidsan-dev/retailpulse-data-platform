@@ -150,8 +150,8 @@ make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
-make bronze-events EVENT_DATE=2026-01-01
-make quality-events EVENT_DATE=2026-01-01
+make bronze-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
+make quality-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make load-events-warehouse EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make dbt-run
 make dbt-test
@@ -168,11 +168,15 @@ python -m src.streaming.validate_web_events --event-date 2026-01-01
 python -m src.warehouse.load_streaming_silver_to_warehouse --event-date 2026-01-01 --run-id <run_id>
 ```
 
-`--run-id` permite convertir un único fichero raw. Si se omite, se procesan todos los ficheros de la partición. Repetir la conversión mantiene la misma ruta bronze para cada `run_id`, evitando crear copias adicionales del mismo fichero de origen.
+`--run-id` permite convertir un único fichero raw. Si se omite, se procesan todos los ficheros de la partición. El consumer muestra este identificador en el nombre `web_events_<run_id>.jsonl`. Reprocesar significa reutilizar ese `run_id` en raw, bronze, calidad y warehouse sin volver a producir ni consumir el lote.
+
+Un lote nuevo sí se publica y consume de nuevo, usando una `EVENT_SEED` que no se haya utilizado antes. No se debe reutilizar una seed cambiando `EVENT_COUNT`: la cantidad modifica la secuencia de generación y podría asociar un `event_id` anterior a otro contenido. Repetir la conversión de un `run_id` existente mantiene su misma ruta bronze.
 
 ### Demo de consumer group
 
 Tres consumers con el mismo `group-id` se reparten las tres particiones. Cada instancia usa un `consumer-id` distinto para poder identificarla. `--allow-partial` permite que cada consumer termine al vencer el tiempo de espera aunque haya recibido menos que el total publicado.
+
+Primero ejecuta `make kafka-reset`. Los grupos nuevos usan `earliest`; sin un topic limpio podrían empezar por mensajes de demostraciones anteriores. Este comando recrea únicamente los brokers Kafka y no toca PostgreSQL ni el data lake.
 
 Primero se inicia un consumer en cada una de tres terminales:
 
@@ -195,6 +199,7 @@ Kafka asigna cada partición a un solo consumer dentro del grupo. La distribuci�
 Con los tres brokers healthy, se puede detener el primero y continuar publicando mediante los otros bootstrap servers:
 
 ```bash
+make kafka-reset
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
 make kafka-stop-broker-1
@@ -363,8 +368,8 @@ make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
-make bronze-events EVENT_DATE=2026-01-01
-make quality-events EVENT_DATE=2026-01-01
+make bronze-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
+make quality-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make load-events-warehouse EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make dbt-run
 make dbt-test
@@ -381,11 +386,15 @@ python -m src.streaming.validate_web_events --event-date 2026-01-01
 python -m src.warehouse.load_streaming_silver_to_warehouse --event-date 2026-01-01 --run-id <run_id>
 ```
 
-`--run-id` converts a single raw file. When omitted, every file in the partition is processed. Repeating the conversion keeps the same bronze path for each `run_id`, avoiding additional copies of the same source file.
+`--run-id` converts a single raw file. When omitted, every file in the partition is processed. The consumer exposes this identifier in the `web_events_<run_id>.jsonl` filename. Reprocessing means reusing that `run_id` through raw, bronze, quality and warehouse without producing or consuming the batch again.
+
+A new batch is produced and consumed again with an `EVENT_SEED` that has not been used before. Do not reuse a seed with another `EVENT_COUNT`: the count changes the generation sequence and could associate an earlier `event_id` with different content. Repeating conversion for an existing `run_id` keeps its same bronze path.
 
 ### Consumer-group demo
 
 Three consumers sharing the same `group-id` divide the three partitions among themselves. Every instance uses a different `consumer-id` so it can be identified. `--allow-partial` lets each consumer finish on idle timeout even when it received fewer messages than the total published count.
+
+Run `make kafka-reset` first. New groups use `earliest`; without an empty topic they could start with messages from earlier demonstrations. This command recreates only the Kafka brokers and leaves PostgreSQL and the data lake untouched.
 
 Start one consumer in each of three terminals first:
 
@@ -408,6 +417,7 @@ Kafka assigns each partition to only one consumer within the group. Event distri
 With all three brokers healthy, the first one can be stopped while publishing continues through the remaining bootstrap servers:
 
 ```bash
+make kafka-reset
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20 KAFKA_CONSUMER_GROUP=failover-demo
 make kafka-stop-broker-1

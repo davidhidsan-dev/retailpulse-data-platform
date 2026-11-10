@@ -135,8 +135,8 @@ make load-warehouse LOAD_DATE=2026-01-01
 make kafka-up
 make produce-events EVENT_COUNT=20 EVENT_SEED=42
 make consume-events EVENT_COUNT=20
-make bronze-events EVENT_DATE=2026-01-01
-make quality-events EVENT_DATE=2026-01-01
+make bronze-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
+make quality-events EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make load-events-warehouse EVENT_DATE=2026-01-01 EVENT_RUN_ID=<run_id>
 make dbt-run
 make dbt-test
@@ -145,7 +145,9 @@ make kafka-down
 
 To demonstrate rejected records without changing the normal run: `make quality-events-demo EVENT_DATE=2026-01-01 EVENT_RUN_ID=<source_run_id>`.
 
-To change the batch dataset seed or customer/product counts, start a clean demo with `make reset-demo`. Changing `EVENT_SEED` or `EVENT_COUNT` to produce other Kafka events does not require resetting the demo while keeping the same batch dataset. The reset removes containers, Docker volumes, generated lake data and dbt artifacts; it does not remove code, `.env`, `.venv`, documentation or screenshots.
+The consumer exposes the `run_id` in the raw filename; reuse it in bronze, quality and warehouse to reprocess that exact batch without publishing it again. For a new Kafka batch, use an unused `EVENT_SEED`: do not reuse the same seed with another `EVENT_COUNT`, because it could repeat `event_id` values with different content. Run `make kafka-reset` before an isolated consumer-group or failover demo; it removes only local Kafka messages, offsets and containers.
+
+To change the batch dataset seed or customer/product counts, start a clean full demo with `make reset-demo`. The reset removes containers, Docker volumes, generated lake data and dbt artifacts; it does not remove code, `.env`, `.venv`, documentation or screenshots.
 
 More detail: [`docs/streaming.md`](docs/streaming.md).
 

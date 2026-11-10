@@ -118,6 +118,8 @@ Limitación:
 
 Los eventos streaming sí usan append incremental. Antes de cargar un `run_id`, el loader exige la última auditoría aprobada y verifica que silver pertenece a la ingesta bronze actual. `warehouse_source.web_events.event_id` es clave primaria; `ON CONFLICT DO NOTHING` hace que repetir el mismo evento no cambie el recuento. Un `event_id` ya existente se considera replay y no actualiza su payload.
 
+El reproceso reutiliza el fichero y el `run_id` existentes; no vuelve a publicar el lote. Un lote nuevo usa una `EVENT_SEED` no utilizada. Reutilizar la misma seed con otro `EVENT_COUNT` no forma parte del contrato reproducible porque puede generar un mismo `event_id` con contenido distinto.
+
 Esta idempotencia presupone el mismo dataset sintético. No cubre regenerar clientes o productos con otra seed o volumen mientras se conserva `web_events`: en ese caso, los IDs históricos podrían desaparecer o representar otras entidades y debe iniciarse una demo limpia.
 
 La demo limpia se inicia explícitamente con `make reset-demo`; `seed-db` no elimina el histórico streaming de forma implícita.
@@ -278,6 +280,8 @@ Limitation:
 - no incremental loading.
 
 Streaming events do use incremental append. Before loading a `run_id`, the loader requires the latest approved audit record and verifies that silver belongs to the current bronze ingestion. `warehouse_source.web_events.event_id` is the primary key; `ON CONFLICT DO NOTHING` means replaying the same event does not change row counts. An existing `event_id` is treated as a replay and does not update its payload.
+
+Reprocessing reuses the existing file and `run_id`; it does not publish the batch again. A new batch uses an unused `EVENT_SEED`. Reusing the same seed with another `EVENT_COUNT` is outside the reproducibility contract because it can generate the same `event_id` with different content.
 
 This idempotency assumes the same synthetic dataset. It does not cover regenerating customers or products with another seed or volume while preserving `web_events`: historical IDs could disappear or represent different entities, so a clean demo is required.
 

@@ -192,7 +192,7 @@ Este comando ejecuta `docker compose down`: detiene y elimina todos los contened
 
 ## ES — Limpieza del entorno
 
-`make clean` limpia cachés Python/pytest y conserva `data/` y los volúmenes Docker. `make down` y `make airflow-down` ejecutan el mismo `docker compose down`: conservan los volúmenes de PostgreSQL y Airflow, pero eliminan los contenedores Kafka y sus mensajes. Para detener Kafka sin eliminar sus contenedores, usa `make kafka-down`. Los datasets locales y las bases de datos no se eliminan automáticamente.
+`make clean` limpia cachés Python/pytest y conserva `data/` y los volúmenes Docker. `make down` y `make airflow-down` ejecutan el mismo `docker compose down`: conservan los volúmenes de PostgreSQL y Airflow, pero eliminan los contenedores Kafka y sus mensajes. `make kafka-down` solo detiene los brokers y conserva sus mensajes; `make kafka-reset` elimina y recrea únicamente los tres brokers para obtener un topic local vacío, sin tocar PostgreSQL ni el data lake. Los datasets locales y las bases de datos no se eliminan automáticamente.
 
 Para reiniciar intencionadamente toda la demo usa `make reset-demo`. Primero valida que las rutas gestionadas pertenecen al repositorio; después elimina contenedores y volúmenes Compose, vacía las capas generadas de `data/` conservando `.gitkeep` y elimina `dbt/target` y `dbt/logs`. No elimina código, `.env`, `.venv`, documentación, perfiles dbt ni capturas.
 
@@ -507,7 +507,7 @@ This command runs `docker compose down`: it stops and removes every container in
 
 ## EN — Environment cleanup
 
-`make clean` removes Python/pytest caches while preserving `data/` and Docker volumes. `make down` and `make airflow-down` run the same `docker compose down`: they preserve the PostgreSQL and Airflow volumes, but remove Kafka containers and their messages. Use `make kafka-down` to stop Kafka without removing its containers. Local datasets and databases are not automatically deleted.
+`make clean` removes Python/pytest caches while preserving `data/` and Docker volumes. `make down` and `make airflow-down` run the same `docker compose down`: they preserve the PostgreSQL and Airflow volumes, but remove Kafka containers and their messages. `make kafka-down` only stops the brokers and preserves their messages; `make kafka-reset` removes and recreates only the three brokers to provide an empty local topic without touching PostgreSQL or the data lake. Local datasets and databases are not automatically deleted.
 
 To intentionally reset the full demo, use `make reset-demo`. It first validates that every managed path belongs to the repository; it then removes Compose containers and volumes, clears generated `data/` layers while preserving `.gitkeep`, and removes `dbt/target` and `dbt/logs`. It does not remove code, `.env`, `.venv`, documentation, dbt profiles or screenshots.
 
